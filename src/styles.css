@@ -1,0 +1,193 @@
+@import "tailwindcss" source(none);
+@source "../src";
+
+/* Google Fonts (Cormorant Garamond + Outfit) */
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Outfit:wght@300;400;500;600;700&display=swap");
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-milk: var(--milk);
+  --color-milk-warm: var(--milk-warm);
+  --color-deep-purple: var(--deep-purple);
+  --color-amethyst: var(--amethyst);
+  --color-lavender: var(--lavender);
+  --color-gold: var(--gold);
+  --color-gold-warm: var(--gold-warm);
+  --color-rose-dust: var(--rose-dust);
+  --color-rose-soft: var(--rose-soft);
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius: 1.125rem;
+
+  /* Rotina de Paz brand palette */
+  --milk: #FAF6F4;
+  --milk-warm: #F6EFEA;
+  --deep-purple: #443A52;
+  --amethyst: #75617F;
+  --lavender: #C4A8BC;
+  --gold: #D9C5A5;
+  --gold-warm: #C9A876;
+  --rose-dust: #D4A5B5;
+  --rose-soft: #E8C9D1;
+
+  --background: var(--milk);
+  --foreground: var(--deep-purple);
+  --border: #EFE6E0;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+}
+
+/* ============ Rotina de Paz custom utilities ============ */
+
+@keyframes rdp-breath {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+@keyframes rdp-typing-dot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+@keyframes rdp-bubble-in {
+  0% { opacity: 0; transform: scale(0.6) translate(-12px, 12px); transform-origin: bottom left; }
+  60% { opacity: 1; transform: scale(1.03) translate(0, 0); }
+  100% { opacity: 1; transform: scale(1) translate(0, 0); }
+}
+@keyframes rdp-particle {
+  0% { opacity: 0; transform: translateY(20px) scale(0.8); }
+  50% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-40px) scale(1.1); }
+}
+
+.rdp-breath { animation: rdp-breath 3s ease-in-out infinite; transform-origin: center; }
+.rdp-bubble-in { animation: rdp-bubble-in 400ms cubic-bezier(.34,1.56,.64,1) both; }
+.rdp-typing-dot { animation: rdp-typing-dot 1.2s infinite; display: inline-block; }
+
+.rdp-gradient-progress {
+  background-image: linear-gradient(90deg, #C4A8BC 0%, #D4A5B5 55%, #D9C5A5 100%);
+}
+.rdp-gradient-cta {
+  background-image: linear-gradient(135deg, #D9C5A5 0%, #C9A876 100%);
+}
+.rdp-title-gradient {
+  background-image: linear-gradient(135deg, #D4A5B5 0%, #C4A8BC 30%, #C9A876 70%, #D9C5A5 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.rdp-gradient-soft {
+  background-image: linear-gradient(180deg, #FAF6F4 0%, #F6EFEA 100%);
+}
+.rdp-shadow-soft {
+  box-shadow: 0 8px 30px -12px rgba(68, 58, 82, 0.18);
+}
+.rdp-shadow-bubble {
+  box-shadow: 0 6px 24px -10px rgba(68, 58, 82, 0.22);
+}
+
+/* Botao roxo que vira gradiente no hover/active */
+.rdp-btn-gradient-hover {
+  background-color: var(--deep-purple);
+  transition: background-color 300ms ease, transform 200ms ease, box-shadow 300ms ease;
+}
+.rdp-btn-gradient-hover:hover {
+  background-image: linear-gradient(135deg, #D4A5B5 0%, #C4A8BC 40%, #C9A876 100%);
+  background-color: transparent;
+}
+.rdp-btn-gradient-hover:active {
+  background-image: linear-gradient(135deg, #D4A5B5 0%, #C4A8BC 40%, #C9A876 100%);
+  background-color: transparent;
+}
+.rdp-btn-gradient-hover:disabled {
+  background-image: none;
+  background-color: var(--deep-purple);
+  opacity: 0.4;
+}
+
+/* Rich HTML rendered from quiz content */
+.rdp-prose p { margin-bottom: 0.85rem; }
+.rdp-prose p:last-child { margin-bottom: 0; }
+.rdp-prose strong { color: var(--deep-purple); font-weight: 600; }
+.rdp-prose blockquote {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: var(--deep-purple);
+  border-left: 3px solid var(--gold);
+  padding: 0.25rem 0 0.25rem 1rem;
+  margin: 1rem 0;
+}
+
+.rdp-verdade .eyebrow {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-warm);
+}
+.rdp-verdade h3 {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  line-height: 1.25;
+  color: var(--deep-purple);
+  margin-top: 0.5rem;
+}
+.rdp-verdade h3 em { font-style: italic; color: var(--gold-warm); font-weight: 400; }
+.rdp-verdade p { margin-top: 0.85rem; color: var(--amethyst); line-height: 1.6; }
+.rdp-verdade strong { color: var(--deep-purple); font-weight: 600; }
+.rdp-verdade .versiculo {
+  margin-top: 1.1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid color-mix(in oklab, var(--lavender) 40%, transparent);
+}
+.rdp-verdade .versiculo span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--gold-warm);
+  margin-bottom: 0.35rem;
+}
+.rdp-verdade .versiculo em {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--deep-purple);
+  line-height: 1.45;
+}
+.rdp-verdade .closing {
+  margin-top: 1rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--deep-purple);
+}
