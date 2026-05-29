@@ -16,6 +16,7 @@ import {
   Lock,
 } from "lucide-react";
 import { buildKirvanoUrl } from "@/lib/utm";
+import { getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
 import { CheckoutModal } from "./CheckoutModal";
 import type { OfferContent, OfferBullet } from "@/data/funil";
 
@@ -108,21 +109,27 @@ export function OfferPage({
     }
   }, [firePurchasePixel]);
 
-  const handleAccept = () => setCheckoutOpen(true);
+  const handleAccept = async () => {
+    const externalId = getOrCreateExternalId();
+    // Fire-and-forget: salva tracking session para cruzar no webhook do upsell
+    void saveTrackingSession(externalId).catch(() => {});
+    // InitiateCheckout antes de abrir o modal (tick de 300ms para beacon sair)
+    await trackInitiateCheckout(externalId, {
+      contentName: content.offer.title,
+      value: parseFloat(content.offer.price.replace(/[^\d,.]/g, "").replace(",", ".")) || undefined,
+    });
+    setCheckoutOpen(true);
+  };
 
   const handleDecline = () => {
-    // Suporta URLs externas (redirect para app login) e rotas internas
-    if (declineTo.startsWith("http")) {
-      window.location.href = declineTo;
-    } else {
-      window.location.href = declineTo;
-    }
+    window.location.href = declineTo;
   };
 
   const percent = Math.round(
     (content.cycle.progressDone / content.cycle.progressTotal) * 100,
   );
-  const checkoutSrc = buildKirvanoUrl(content.checkoutUrl);
+  const externalId = getOrCreateExternalId();
+  const checkoutSrc = buildKirvanoUrl(content.checkoutUrl, { externalId });
 
   return (
     <div className="min-h-dvh bg-[color:var(--milk)] text-[color:var(--deep-purple)] flex flex-col">

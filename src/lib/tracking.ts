@@ -1,0 +1,96 @@
+import { getSupabase } from "./supabase";
+
+const EXTERNAL_ID_KEY = "rdp_external_id";
+
+/**
+ * Gera ou recupera external_id único da sessão.
+ * Formato: "qs_" + UUID. Persistido em localStorage para reuso na sessão.
+ */
+export function getOrCreateExternalId(): string {
+  try {
+    const stored = localStorage.getItem(EXTERNAL_ID_KEY);
+    if (stored) return stored;
+  } catch {}
+  const id = `qs_${crypto.randomUUID()}`;
+  try {
+    localStorage.setItem(EXTERNAL_ID_KEY, id);
+  } catch {}
+  return id;
+}
+
+/**
+ * Lê cookies _fbp e _fbc do browser.
+ * _fbp é gerado pelo pixel Meta automaticamente.
+ * _fbc é gerado quando fbclid está na URL (pode não existir).
+ */
+export function readFbCookies(): { fbp: string | null; fbc: string | null } {
+  try {
+    const cookies = document.cookie;
+    const fbp = cookies.match(/(?:^|;\s*)_fbp=([^;]+)/)?.[1] ?? null;
+    const fbc = cookies.match(/(?:^|;\s*)_fbc=([^;]+)/)?.[1] ?? null;
+    return { fbp, fbc };
+  } catch {
+    return { fbp: null, fbc: null };
+  }
+}
+
+/**
+ * Salva tracking session no Supabase (anon insert).
+ * Fire-and-forget: nunca bloqueia o fluxo principal.
+ */
+export async function saveTrackingSession(externalId: string): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+
+  const { fbp, fbc } = readFbCookies();
+  const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+  const userAgent = navigator.userAgent;
+
+  await sb.from("tracking_sessions").upsert(
+    {
+      external_id: externalId,
+      fbp: fbp ?? null,
+      fbc: fbc ?? null,
+      fbclid: fbclid ?? null,
+      client_ip: null, // IP confiável não disponível client-side; servidor preencherá se possível
+      user_agent: userAgent,
+    },
+    { onConflict: "external_id" },
+  );
+}
+
+/**
+ * Dispara InitiateCheckout no pixel Meta.
+ * eventID baseado no external_id para correlação.
+ * Retorna Promise que resolve após pequeno tick para garantir que o evento
+ * é enviado antes de redirect/navegação.
+ */
+export function trackInitiateCheckout(
+  externalId: string,
+  extras?: { value?: number; contentName?: string },
+): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const fbq = (window as any).fbq;
+      if (!fbq) {
+        resolve();
+        return;
+      }
+
+      const eventId = `ic_${externalId}`;
+      const data: Record<string, any> = {
+        content_name: extras?.contentName ?? "Rotina de Paz",
+        content_ids: ["rotina_de_paz"],
+        currency: "BRL",
+      };
+      if (extras?.value) {
+        data.value = extras.value;
+      }
+
+      fbq("track", "InitiateCheckout", data, { eventID: eventId });
+    } catch {}
+
+    // Tick de 300ms para o beacon do pixel sair antes do redirect
+    setTimeout(resolve, 300);
+  });
+}

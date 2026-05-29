@@ -19,6 +19,8 @@ import {
 import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
+import { getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
+import logoSrc from "@/assets/rotina-de-paz-logo.png";
 
 const KIRVANO_URL =
   (import.meta.env.VITE_KIRVANO_URL as string | undefined) ||
@@ -62,17 +64,6 @@ export function QuizApp() {
     const q = QUESTIONS[qIndex];
     const opt = q.options.find((o) => o.value === value);
     if (!opt) return;
-
-    // Filtro de risco — Q2
-    if (opt.risk) {
-      // Incremento anônimo (opcional) — sem PII
-      const sb = getSupabase();
-      try {
-        await sb?.from("risk_events").insert({ source: "quiz" });
-      } catch {}
-      navigate({ to: "/quiz/encaminhamento" });
-      return;
-    }
 
     playDing();
     const next = { ...answers, [q.key]: value };
@@ -184,9 +175,14 @@ export function QuizApp() {
     setStage("offer");
   }
 
-  function checkout() {
+  async function checkout() {
     if (!archetype) return;
-    const url = buildKirvanoUrl(KIRVANO_URL, { archetype, name, email });
+    const externalId = getOrCreateExternalId();
+    // Fire-and-forget: salva tracking session (fbp/fbc/ua) para cruzar no webhook
+    void saveTrackingSession(externalId).catch(() => {});
+    // InitiateCheckout com tick de espera para o beacon sair antes do redirect
+    await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz" });
+    const url = buildKirvanoUrl(KIRVANO_URL, { archetype, name, email, externalId });
     window.location.href = url;
   }
 
@@ -275,7 +271,7 @@ function HeroScreen({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-6 py-16 text-center"
+      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-5 py-8 text-center sm:px-6 sm:py-16"
     >
       {/* Avatar + bubble (padrão atual) */}
       <div className="flex w-full items-start justify-center gap-4">
@@ -287,7 +283,7 @@ function HeroScreen({
       </div>
 
       {/* Eyebrow com traços */}
-      <div className="mt-14 flex items-center gap-4 text-[color:var(--amethyst)]">
+      <div className="mt-8 flex items-center gap-4 text-[color:var(--amethyst)] sm:mt-14">
         <span className="h-px w-10 bg-[color:var(--gold)]/60" />
         <p className="text-xs font-medium uppercase tracking-[0.28em]">
           Quiz personalizado · 7 perguntas
@@ -296,19 +292,19 @@ function HeroScreen({
       </div>
 
       {/* Título grande com gradiente */}
-      <h1 className="rdp-title-gradient mt-8 font-display text-5xl leading-[1.05] tracking-tight sm:text-[64px]">
+      <h1 className="rdp-title-gradient mt-5 font-display text-4xl leading-[1.05] tracking-tight sm:mt-8 sm:text-[64px]">
         Sua ansiedade tem um <em className="italic">tipo</em>.
       </h1>
 
       {/* Subtítulo serif itálico */}
-      <p className="mt-7 font-display text-2xl italic leading-snug text-[color:var(--amethyst)] sm:text-[28px]">
+      <p className="mt-4 font-display text-xl italic leading-snug text-[color:var(--amethyst)] sm:mt-7 sm:text-[28px]">
         Descubra qual é o seu —
         <br />
         e o caminho que foi feito para ele.
       </p>
 
       {/* Body */}
-      <p className="mt-10 max-w-xl text-base leading-relaxed text-[color:var(--deep-purple)] sm:text-lg">
+      <p className="mt-6 max-w-xl text-sm leading-relaxed text-[color:var(--deep-purple)] sm:mt-10 sm:text-lg">
         Existem 4 padrões diferentes de ansiedade entre mulheres cristãs.
         Descubra o seu — e por que a oração que funciona pra outras pessoas
         pode estar tendo efeito curto na sua.
@@ -320,7 +316,7 @@ function HeroScreen({
           e.preventDefault();
           if (name.trim().length >= 2) onStart();
         }}
-        className="mt-12 flex w-full max-w-sm flex-col items-center gap-4"
+        className="mt-6 flex w-full max-w-sm flex-col items-center gap-3 sm:mt-12 sm:gap-4"
       >
         <input
           id="name"
@@ -345,7 +341,7 @@ function HeroScreen({
       </form>
 
       {/* Footer italic */}
-      <p className="mt-10 max-w-md font-display text-base italic leading-relaxed text-[color:var(--amethyst)]/85">
+      <p className="mt-5 max-w-md font-display text-sm italic leading-relaxed text-[color:var(--amethyst)]/85 sm:mt-10 sm:text-base">
         Sem julgamento. Sem diagnóstico. Sem rótulo.
         <br />
         Só uma forma honesta de você escutar a si mesma.
@@ -377,6 +373,7 @@ function QuestionScreen({
   const [showPrompt, setShowPrompt] = useState(!transition);
 
   useEffect(() => {
+    if (!q) return;
     setShowOptions(false);
     setShowPrompt(!transition);
     const promptDelay = transition ? 700 + transition.length * 30 + 800 : 0;
@@ -389,20 +386,22 @@ function QuestionScreen({
       if (t1) clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [qIndex, q.prompt, transition]);
+  }, [qIndex, q?.prompt, transition]);
+
+  if (!q) return null;
 
   return (
     <motion.section
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto flex min-h-dvh max-w-2xl flex-col px-5 pb-10 pt-6 sm:px-8"
+      className="mx-auto flex min-h-dvh max-w-2xl flex-col px-4 pb-6 pt-4 sm:px-8 sm:pb-10 sm:pt-6"
     >
       <EmotionalProgress current={qIndex + 1} total={total} />
 
-      <div className="mt-8 flex items-start gap-3 sm:gap-5">
+      <div className="mt-5 flex items-start gap-3 sm:mt-8 sm:gap-5">
         <GuideAvatar size="corner" />
-        <div className="flex-1 space-y-3 pt-1">
+        <div className="flex-1 space-y-2 pt-1 sm:space-y-3">
           {transition && (
             <SpeechBubble
               text={transition}
@@ -420,7 +419,7 @@ function QuestionScreen({
         </div>
       </div>
 
-      <div className="mt-8 grid gap-3">
+      <div className="mt-5 grid gap-2 sm:mt-8 sm:gap-3">
         <AnimatePresence>
           {showOptions &&
             q.options.map((opt, i) => (
@@ -484,6 +483,7 @@ function QuestionScreen({
 /* ============================== LOADING ============================== */
 
 function LoadingScreen({ step }: { step: number }) {
+  const particles = Array.from({ length: 28 });
   const messages = [
     "Lendo suas respostas com calma...",
     "Cruzando os 4 padrões raízes...",
@@ -497,46 +497,63 @@ function LoadingScreen({ step }: { step: number }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-6 text-center"
+      transition={{ duration: 0.6 }}
+      className="rdp-night fixed inset-0 z-50 grid place-items-center"
     >
-      <GuideAvatar size="hero" />
-      <div className="mt-8">
-        <SpeechBubble text="Estou analisando suas respostas..." typingDelay={300} />
+      <div className="rdp-particles" aria-hidden>
+        {particles.map((_, i) => {
+          const left = Math.random() * 100;
+          const size = 2 + Math.random() * 4;
+          const dur = 6 + Math.random() * 7;
+          const delay = -Math.random() * 8;
+          const drift = (Math.random() - 0.5) * 80;
+          const opacity = 0.5 + Math.random() * 0.5;
+          return (
+            <span
+              key={i}
+              className="rdp-particle-splash"
+              style={{
+                left: `${left}%`,
+                width: `${size}px`,
+                height: `${size}px`,
+                animationDuration: `${dur}s`,
+                animationDelay: `${delay}s`,
+                ["--rdp-drift" as string]: `${drift}px`,
+                opacity,
+              }}
+            />
+          );
+        })}
       </div>
-      <ul className="mt-10 space-y-2 text-[color:var(--amethyst)]">
-        {messages.map((m, i) => (
-          <li
-            key={m}
-            className={`font-display text-lg italic transition-all duration-500 ${
-              i <= step ? "opacity-100" : "opacity-20"
-            }`}
-          >
-            {m}
-          </li>
-        ))}
-      </ul>
+      <div className="relative flex flex-col items-center gap-4 rdp-logo-in">
+        <img src={logoSrc} alt="Rotina de Paz" width={180} height={180} className="h-44 w-44 rdp-breath" />
+        <p className="font-display text-xl tracking-[0.32em] rdp-gold-text">ROTINA DE PAZ</p>
+        <div className="mt-2 h-[2px] w-32 overflow-hidden rounded-full bg-white/5">
+          <div className="h-full rdp-shimmer" />
+        </div>
+        <p className="rdp-haja-luz mt-3 font-display text-[11px] uppercase tracking-[0.42em] text-[color:rgba(232,201,160,0.85)]">
+          Haja Luz
+        </p>
+        <ul className="mt-6 space-y-1.5">
+          {messages.map((m, i) => (
+            <li
+              key={m}
+              className={`font-display text-sm italic transition-all duration-500 ${
+                i <= step ? "text-[color:rgba(232,201,160,0.85)]" : "text-white/15"
+              }`}
+            >
+              {m}
+            </li>
+          ))}
+        </ul>
+      </div>
     </motion.section>
   );
 }
 
 function AmbientParticles({ active }: { active: boolean }) {
   if (!active) return null;
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {Array.from({ length: 18 }).map((_, i) => (
-        <span
-          key={i}
-          className="absolute h-1.5 w-1.5 rounded-full bg-[color:var(--gold)]"
-          style={{
-            left: `${(i * 53) % 100}%`,
-            bottom: `-${(i * 7) % 30}px`,
-            animation: `rdp-particle ${4 + (i % 5)}s ${i * 0.3}s ease-in-out infinite`,
-            opacity: 0,
-          }}
-        />
-      ))}
-    </div>
-  );
+  return null;
 }
 
 /* ============================== RESULT ============================== */

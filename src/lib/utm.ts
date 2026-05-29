@@ -26,7 +26,7 @@ export function captureUtms(): UtmParams {
 
 export function buildKirvanoUrl(
   baseUrl: string,
-  extras: { archetype?: string; name?: string; email?: string } = {},
+  extras: { archetype?: string; name?: string; email?: string; externalId?: string } = {},
 ): string {
   try {
     const url = new URL(baseUrl);
@@ -37,6 +37,8 @@ export function buildKirvanoUrl(
     if (extras.archetype) url.searchParams.set("arquetipo", extras.archetype);
     if (extras.name) url.searchParams.set("nome", extras.name);
     if (extras.email) url.searchParams.set("email", extras.email);
+    // external_id viaja como "src" — Kirvano devolve em utm.src no webhook
+    if (extras.externalId) url.searchParams.set("src", extras.externalId);
     return url.toString();
   } catch {
     return baseUrl;
