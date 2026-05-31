@@ -70,11 +70,9 @@ function firePixelPurchase() {
       content_name: "Rotina de Paz",
       content_ids: ["rotina_de_paz"],
     };
-    if (rawValue) {
-      const parsed = parseFloat(rawValue);
-      if (!isNaN(parsed) && parsed > 0) {
-        purchaseData.value = parsed;
-      }
+    const parsed = rawValue ? parseFloat(rawValue) : 47;
+    if (!isNaN(parsed) && parsed > 0) {
+      purchaseData.value = parsed;
     }
 
     fbq("track", "Purchase", purchaseData, { eventID: eventId });
