@@ -39,10 +39,12 @@ rotina-de-paz-app.vercel.app  → App pós-compra (Círculo da Paz) + Admin Dash
 src/
 ├── routes/           → Rotas TanStack Router (auto-generated routeTree.gen.ts)
 ├── components/quiz/
-│   ├── QuizApp.tsx   → Componente principal (stages: hero→questions→loading→result→bridge→offer)
-│   ├── Avatar.tsx    → Avatar da guia
+│   ├── QuizApp.tsx   → Componente principal (stages: hero→questions→loading→result→offer)
+│   │                   Contém ResultScreen, OfferScreen e NarrationCaption (legenda word-by-word)
+│   ├── Avatar.tsx    → Avatar da guia (prop `src` p/ trocar imagem; size hero|corner|chat)
 │   └── SpeechBubble.tsx, EmotionalProgress.tsx
-├── data/quiz.ts      → Perguntas, arquétipos, transições, confirmações
+├── data/quiz.ts      → Perguntas, arquétipos (campo `result`), transições, computeArchetype
+├── data/narration.ts → Cues da legenda da oferta (tempo por palavra, gerado por forced-alignment)
 ├── data/funil.ts     → Conteúdo das ofertas upsell (R$67) e downsell (R$37)
 ├── components/funil/
 │   ├── OfferPage.tsx    → Página genérica de oferta (upsell/downsell)
@@ -149,6 +151,46 @@ Quiz (7 perguntas)
 | `KIRVANO_WEBHOOK_SECRET` | Vercel env vars (app) | Token HMAC dos webhooks Kirvano |
 | `VITE_KIRVANO_UPSELL_URL` | Quiz Sacra .env | URL checkout upsell Kirvano |
 | `VITE_KIRVANO_DOWNSELL_URL` | Quiz Sacra .env | URL checkout downsell Kirvano |
+
+### Atualização 2026-05-30 — Redesign do funil (resultado → oferta)
+
+Sessão grande de redesign do fim do funil. **Direção tomada:** transformar o trecho
+resultado→oferta numa jornada de conversão mais sólida, fluida e leve, sem perder lead.
+
+**O que mudou:**
+
+1. **Removida a página de transição (BridgeScreen).** Fluxo agora é
+   `resultado → (CTA) → oferta` direto. O conteúdo "O Porquê" (mente→corpo→instalação) foi
+   absorvido pela narração da oferta.
+2. **Chat de balões → legenda única word-by-word** (`NarrationCaption` no QuizApp.tsx).
+   As palavras acendem no ritmo da voz; trechos fortes em dourado, versículos em itálico.
+   Cues com tempo por palavra em `src/data/narration.ts`.
+3. **Áudio único contínuo da oferta:** `src/assets/audio/narracao.mp3` (voz Amandoca,
+   `eleven_multilingual_v2`). Gerado por `~/tts-narrador/gerar_narracao.mjs`; os tempos das
+   cues vêm de `~/tts-narrador/processar_legenda.mjs` (forced-alignment — preserva o áudio).
+   Sincronização via `timeupdate` do `<audio>` (nunca dessincroniza); fallback por tempo;
+   autoplay ao entrar na viewport + 1º toque libera o som; mute e "toque para começar".
+4. **Avatar "Jaqueline"** (`src/assets/jaqueline-avatar.webp`) só na oferta — header
+   horizontal (foto à esquerda, nome+status à direita).
+5. **Persistência de sessão** (`sessionStorage` chave `sacra_quiz_state_v1`): refresh em
+   result/offer devolve a pessoa onde estava (não recomeça o quiz). Só persiste em
+   result/offer; JSON corrompido é ignorado (try/catch). Botão "Voltar" na oferta → resultado.
+6. **Scroll-to-top** em toda troca de tela (`useEffect` em `[stage]`) — a oferta abre no topo.
+7. **Perguntas mais fluidas:** a transição **sobe pronta** (`SpeechBubble` prop `instant`) e
+   só a pergunta digita. **Bug corrigido:** o `useEffect` do typewriter não limpava o
+   `setInterval` no cleanup → intervals vazavam e o texto "pingava/voltava". Agora limpa
+   timeout E interval + flag de cancelamento.
+8. **Performance:** todas as imagens viraram **WebP** (~2 MB → dezenas de KB) e o áudio virou
+   mono 80k. Total de assets caiu de ~10,5 MB para ~1,15 MB. Imports atualizados p/ `.webp`.
+9. **Visual da oferta:** mockup da Rotina de Paz no lugar do título (moldura dourada premium,
+   sombra de flutuação); cards de capítulo e ícones de entregáveis em roxo (paleta
+   `#574868→#41345a`); bônus virou título dourado + imagem; botão dourado só no resultado
+   (`.rdp-btn-gold`, com degradê no hover) e nos demais o padrão roxo→degradê.
+10. **Preview por URL (dev):** `?preview=<arquetipo>&stage=<result|offer>&desire=<...>&situation=<...>`.
+
+> Paleta roxa do card escuro de resultado: gradiente `#382b46 → #2a2236`. Cards/ícones da
+> oferta usam um roxo mais claro (`#574868→#41345a`; ícones de entrega ainda mais claros
+> `#7d6a96→#5f4f7d`). Dourado de destaque: `--gold-warm #C9A876`.
 
 ---
 

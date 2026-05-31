@@ -10,6 +10,8 @@ type Props = {
   italic?: boolean;
   /** key extra para resetar typewriter */
   resetKey?: string | number;
+  /** mostra o texto pronto (sem digitar), só com o fade da bolha */
+  instant?: boolean;
 };
 
 export function SpeechBubble({
@@ -19,30 +21,52 @@ export function SpeechBubble({
   onDone,
   italic = false,
   resetKey,
+  instant = false,
 }: Props) {
-  const [typing, setTyping] = useState(true);
-  const [output, setOutput] = useState("");
+  // instant: já nasce com o texto pronto (sem piscar). typewriter: começa vazio.
+  const [output, setOutput] = useState(instant ? text : "");
+  const [typing, setTyping] = useState(!instant && typingDelay > 0);
 
   useEffect(() => {
+    if (instant) {
+      setTyping(false);
+      setOutput(text);
+      onDone?.();
+      return;
+    }
+
+    let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | undefined;
+
     setOutput("");
-    setTyping(true);
+    setTyping(typingDelay > 0);
+
     const t1 = setTimeout(() => {
+      if (cancelled) return;
       setTyping(false);
       let i = 0;
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
+        if (cancelled) return;
         i += 1;
         setOutput(text.slice(0, i));
         if (i >= text.length) {
-          clearInterval(interval);
+          if (interval) clearInterval(interval);
           onDone?.();
         }
       }, speed);
     }, typingDelay);
+
+    // Limpa AMBOS (timeout e interval) — evita intervals fantasmas competindo.
     return () => {
+      cancelled = true;
       clearTimeout(t1);
+      if (interval) clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, resetKey]);
+  }, [text, resetKey, instant]);
+
+  const display = instant ? text : output;
+  const showCursor = !instant && display.length < text.length;
 
   return (
     <div className="relative max-w-xl">
@@ -68,8 +92,8 @@ export function SpeechBubble({
               italic ? "italic" : ""
             }`}
           >
-            {output}
-            {output.length < text.length && <span className="opacity-40">▌</span>}
+            {display}
+            {showCursor && <span className="opacity-40">▌</span>}
           </p>
         )}
       </div>

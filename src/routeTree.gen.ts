@@ -10,13 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as QuizSacraRouteImport } from './routes/quiz-sacra'
+import { Route as ObrigadoRouteImport } from './routes/obrigado'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as QuizIndexRouteImport } from './routes/quiz.index'
-import { Route as QuizEncaminhamentoRouteImport } from './routes/quiz.encaminhamento'
 
 const QuizSacraRoute = QuizSacraRouteImport.update({
   id: '/quiz-sacra',
   path: '/quiz-sacra',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ObrigadoRoute = ObrigadoRouteImport.update({
+  id: '/obrigado',
+  path: '/obrigado',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -29,43 +34,38 @@ const QuizIndexRoute = QuizIndexRouteImport.update({
   path: '/quiz/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const QuizEncaminhamentoRoute = QuizEncaminhamentoRouteImport.update({
-  id: '/quiz/encaminhamento',
-  path: '/quiz/encaminhamento',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/obrigado': typeof ObrigadoRoute
   '/quiz-sacra': typeof QuizSacraRoute
-  '/quiz/encaminhamento': typeof QuizEncaminhamentoRoute
   '/quiz/': typeof QuizIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/obrigado': typeof ObrigadoRoute
   '/quiz-sacra': typeof QuizSacraRoute
-  '/quiz/encaminhamento': typeof QuizEncaminhamentoRoute
   '/quiz': typeof QuizIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/obrigado': typeof ObrigadoRoute
   '/quiz-sacra': typeof QuizSacraRoute
-  '/quiz/encaminhamento': typeof QuizEncaminhamentoRoute
   '/quiz/': typeof QuizIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/quiz-sacra' | '/quiz/encaminhamento' | '/quiz/'
+  fullPaths: '/' | '/obrigado' | '/quiz-sacra' | '/quiz/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/quiz-sacra' | '/quiz/encaminhamento' | '/quiz'
-  id: '__root__' | '/' | '/quiz-sacra' | '/quiz/encaminhamento' | '/quiz/'
+  to: '/' | '/obrigado' | '/quiz-sacra' | '/quiz'
+  id: '__root__' | '/' | '/obrigado' | '/quiz-sacra' | '/quiz/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ObrigadoRoute: typeof ObrigadoRoute
   QuizSacraRoute: typeof QuizSacraRoute
-  QuizEncaminhamentoRoute: typeof QuizEncaminhamentoRoute
   QuizIndexRoute: typeof QuizIndexRoute
 }
 
@@ -76,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/quiz-sacra'
       fullPath: '/quiz-sacra'
       preLoaderRoute: typeof QuizSacraRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/obrigado': {
+      id: '/obrigado'
+      path: '/obrigado'
+      fullPath: '/obrigado'
+      preLoaderRoute: typeof ObrigadoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -92,20 +99,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QuizIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/quiz/encaminhamento': {
-      id: '/quiz/encaminhamento'
-      path: '/quiz/encaminhamento'
-      fullPath: '/quiz/encaminhamento'
-      preLoaderRoute: typeof QuizEncaminhamentoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ObrigadoRoute: ObrigadoRoute,
   QuizSacraRoute: QuizSacraRoute,
-  QuizEncaminhamentoRoute: QuizEncaminhamentoRoute,
   QuizIndexRoute: QuizIndexRoute,
 }
 export const routeTree = rootRouteImport

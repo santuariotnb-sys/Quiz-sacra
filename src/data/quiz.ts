@@ -151,11 +151,31 @@ export type ArchetypeChapter = {
   description: string;
 };
 
+/** Conteúdo estruturado da tela de resultado (versão resumida, micro-CTAs). */
+export type ArchetypeResult = {
+  /** Tagline curta sob o nome no header. */
+  tagline: string;
+  /** Parágrafo "O que está acontecendo" (pode conter <strong>). */
+  happening: string;
+  /** Frase-espelho (citação) destacada. */
+  mirror: string;
+  /** Card escuro "verdade": título normal + parte em itálico dourado. */
+  truthTitle: string;
+  truthTitleEm: string;
+  /** Corpo do card escuro (pode conter <strong>). */
+  truthBody: string;
+  verseRef: string;
+  verseText: string;
+  /** Selo final do card escuro (use \n para quebra de linha). */
+  seal: string;
+};
+
 export type ArchetypeData = {
   id: Archetype;
   name: string;
   subtitle: string;
   tagline: string;
+  result: ArchetypeResult;
   /** HTML rico — renderizado via dangerouslySetInnerHTML. */
   mechanismHtml: string;
   /** HTML rico do bloco "desarme" (verdade + versículo). */
@@ -174,6 +194,20 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
     name: "VIGILANTE",
     subtitle: "O padrão da Mente Que Não Desliga.",
     tagline: "O método guiado para a Mente Que Não Desliga.",
+    result: {
+      tagline: "O padrão de quem não consegue desligar.",
+      happening:
+        "Você acorda às 3h porque, por anos, seu corpo aprendeu que <strong>se desligar, algo escapa</strong>. É cortisol transbordando uma xícara já cheia.",
+      mirror:
+        "Você não dorme mal porque o barulho te acorda. Não dorme porque seu corpo aprendeu que, se desligar, algo escapa.",
+      truthTitle: "Isso não é falta de fé.",
+      truthTitleEm: "É um corpo em alerta.",
+      truthBody:
+        "Um padrão fisiológico instalado por anos de vigilância. E que pode ser <strong>desinstalado também</strong> — com o método certo, na ordem certa.",
+      verseRef: "Salmos 121",
+      verseText: "Aquele que te guarda não dormirá nem cochilará.",
+      seal: "O Guarda já está acordado.\nVocê está acordada de graça.",
+    },
     chapters: [
       {
         num: "06",
@@ -210,7 +244,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       "mae-solo":
         "Sustentar a casa sozinha ensina o corpo a nunca desligar. Se você soltar, o que segura tudo?",
       solteira:
-        "Você dorme mal mesmo sem ninguém dependendo de você. Porque o padrão antigo continua agindo.",
+        "Você dorme mal mesmo sem filhos em casa. O corpo aprendeu a vigiar — e continua de plantão, mesmo quando o perigo já passou.",
     },
   },
   sobrecarga: {
@@ -218,6 +252,21 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
     name: "SOBRECARGA",
     subtitle: "O padrão da Que Carrega Todos.",
     tagline: "O método guiado para a Que Carrega Todos.",
+    result: {
+      tagline: "O padrão de quem carrega todos.",
+      happening:
+        "Você segura tudo — e quando perguntam, sorri e diz “tudo bem”. Mas o cansaço está num lugar que dormir não alcança: <strong>ombro, pescoço, mandíbula</strong>. E parar te dá uma culpa estranha.",
+      mirror:
+        "Você se perdeu sendo a pessoa que segura todo mundo. E agora, ninguém segura você — nem você mesma.",
+      truthTitle: "Isso não é fraqueza.",
+      truthTitleEm: "É exaustão acumulada.",
+      truthBody:
+        "Anos sendo “a forte”, “a prestativa”. Ninguém te avisou que <strong>descansar também é fé</strong> — confiar que Deus continua agindo enquanto você dorme.",
+      verseRef: "Mateus 11",
+      verseText:
+        "Vinde a mim, todos os que estais cansados e sobrecarregados, e eu vos aliviarei.",
+      seal: "O convite é específico pra você.\nNão é pra se esforçar mais — é pra parar.",
+    },
     chapters: [
       {
         num: "05",
@@ -246,11 +295,11 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       "Que o método resolva a sobrecarga externa real. Se você cuida de pais idosos sozinha, se o marido não divide, se o trabalho é abusivo — essas conversas precisam acontecer fora daqui.",
     bridges: {
       "casada-filhos-pequenos":
-        "Mãe de filho pequeno sustenta duas casas ao mesmo tempo: a sua e a do filho. Você é a forte porque não tem opção.",
+        "Com filho pequeno em casa, você é o chão de todo mundo: do filho, do marido, da rotina. Segura tudo — e ninguém pergunta quem segura você.",
       "casada-filhos-grandes":
         "Filho cresceu — só mudou o tipo de cuidado. O corpo segue respondendo como se ainda houvesse criança chorando.",
       "casada-sem-filhos":
-        "Você cuida do marido, da casa, da sua mãe, da família toda. Não tem filho — tem todo mundo.",
+        "Você cuida do marido, da casa, dos pais, da família toda. Não tem filho — tem todo mundo.",
       "mae-solo":
         "Mãe solo é a definição de Sobrecarga: a primeira que acorda, a última que dorme. Não existe almoço sem você.",
       solteira:
@@ -262,6 +311,20 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
     name: "CULPOSA",
     subtitle: "O padrão da Que Não Se Perdoa.",
     tagline: "O método guiado para a Que Não Se Perdoa.",
+    result: {
+      tagline: "O padrão de quem não se perdoa.",
+      happening:
+        "Você ora, lê, tenta confiar — e acorda com o peito apertado. E aí vem a parte mais cruel: <strong>você se culpa por estar sentindo</strong>, como se cristã de verdade não tremesse.",
+      mirror:
+        "Essa voz que te diz “cristã de verdade não sente isso” não é a voz do Espírito Santo. É a voz da insuficiência.",
+      truthTitle: "A condenação que você sente",
+      truthTitleEm: "não vem do Pai.",
+      truthBody:
+        "Ansiedade não é fé fraca — é um corpo em alerta crônico. Você teria a fé de Abraão e seu cortisol ainda subiria às 3h. <strong>Cortisol responde a treino corporal, não a fé consciente.</strong>",
+      verseRef: "Romanos 8",
+      verseText: "Já não há condenação para os que estão em Cristo Jesus.",
+      seal: "Já não há.\nA condenação que você sente vem de uma régua que confundiu sofrimento com santidade.",
+    },
     chapters: [
       {
         num: "02",
@@ -296,7 +359,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       "casada-sem-filhos":
         "Cristã casada sem filhos carrega uma culpa que ninguém nomeia: a da ausência. Por não ter, por ter desejado, por não ter desejado.",
       "mae-solo":
-        "Mãe solo cristã carrega três culpas: a do divórcio, a de não ser 'família completa' e a de ser forte demais.",
+        "Mãe solo cristã carrega culpa em camadas: a de não dar conta de tudo, a de não ser a 'família completa' que ensinaram, e a de ser forte demais pra pedir ajuda.",
       solteira:
         "Cristã solteira na igreja carrega a culpa silenciosa de não ter cumprido o 'destino esperado' — e de se perguntar, sozinha, se Deus se esqueceu.",
     },
@@ -306,6 +369,20 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
     name: "ANTECIPATÓRIA",
     subtitle: "O padrão da Que Antecipa o Pior.",
     tagline: "O método guiado para a Que Antecipa o Pior.",
+    result: {
+      tagline: "O padrão de quem antecipa o pior.",
+      happening:
+        "Antes de levantar, sua mente já correu o dia inteiro. Cada dor vira doença, cada atraso vira tragédia. E <strong>nada disso acontece</strong> — mas seu corpo já gastou toda a energia.",
+      mirror:
+        "O futuro te preocupa antes mesmo de chegar. E quando chega — raramente é o que você temia.",
+      truthTitle: "Isso não é frescura.",
+      truthTitleEm: "É um padrão neural.",
+      truthBody:
+        "Seu cérebro aprendeu: <strong>“se eu não antecipar o pior, ele me pega de surpresa”</strong>. E continua prevendo, mesmo sem perigo. Cerca de 85% do que ansiosos preveem nunca acontece.",
+      verseRef: "Jeremias 29",
+      verseText: "Eu sei os planos que tenho para vocês — planos de paz, e não de mal.",
+      seal: "O plano já existe.\nVocê está vivendo num futuro que ainda não foi escrito por Deus.",
+    },
     chapters: [
       {
         num: "01",
