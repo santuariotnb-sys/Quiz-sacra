@@ -51,7 +51,7 @@ export type OfferContent = {
   checkoutUrl: string;
 };
 
-// Upsell — após compra da Rotina de Paz (R$67)
+// Upsell — após compra da Rotina de Paz (R$47)
 export const UPSELL_CONTENT: OfferContent = {
   id: "upsell-chave-gratidao",
   topBanner: {
@@ -95,6 +95,7 @@ export const UPSELL_CONTENT: OfferContent = {
       { icon: "video", text: "7 videoaulas de 15–20 min (ensino bíblico aplicado)" },
       { icon: "heart", text: "Fé aplicada à rotina — pra firmar o novo padrão" },
       { icon: "clock", text: "Acesso vitalício no app — no seu tempo" },
+      { icon: "book", text: "Devocional com Oração de fé" },
     ],
     priceFrom: "R$ 197",
     price: "R$ 67",
@@ -152,6 +153,7 @@ export const DOWNSELL_CONTENT: OfferContent = {
       { icon: "video", text: "7 videoaulas de 15–20 min (ensino bíblico aplicado)" },
       { icon: "heart", text: "Fé aplicada à rotina — pra firmar o novo padrão" },
       { icon: "clock", text: "Acesso vitalício no app — no seu tempo" },
+      { icon: "book", text: "Devocional com Oração de fé" },
     ],
     priceFrom: "R$ 67",
     price: "R$ 37",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "@tanstack/react-router";
 import { GuideAvatar } from "./Avatar";
@@ -20,20 +20,89 @@ import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
 import { getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
-import logoSrc from "@/assets/rotina-de-paz-logo.png";
+import logoSrc from "@/assets/rotina-de-paz-logo.webp";
+import { Check, Sparkles, Volume2, VolumeX } from "lucide-react";
+import narracaoAudio from "@/assets/audio/narracao.mp3";
+import { NARRATION } from "@/data/narration";
+import jaquelineAvatar from "@/assets/jaqueline-avatar.webp";
+import rotinaMockup from "@/assets/rotina-de-paz-mockup.webp";
+import bonusImg from "@/assets/bonus-rotina.webp";
 
 const KIRVANO_URL =
   (import.meta.env.VITE_KIRVANO_URL as string | undefined) ||
   "https://pay.kirvano.com/sua-oferta";
 
-type Stage = "hero" | "questions" | "loading" | "result" | "bridge" | "offer";
+type Stage = "hero" | "questions" | "loading" | "result" | "offer";
+
+// Detecta se alguma resposta marcou risco (P2: "pensamentos sombrios" / "estou em crise").
+function answersHaveRisk(ans: Record<string, string>): boolean {
+  return QUESTIONS.some((q) =>
+    q.options.some((o) => o.value === ans[q.key] && o.risk),
+  );
+}
+
+// Preview por URL (dev): ?preview=<arquetipo>&stage=offer pula direto pro estágio.
+function parsePreview(): {
+  archetype: Archetype;
+  stage: Stage;
+  desire?: string;
+  situation?: string;
+} | null {
+  if (typeof window === "undefined") return null;
+  const p = new URLSearchParams(window.location.search);
+  const a = p.get("preview");
+  if (!a || !(a in ARCHETYPES)) return null;
+  const s = (p.get("stage") as Stage) || "offer";
+  return {
+    archetype: a as Archetype,
+    stage: s,
+    desire: p.get("desire") ?? undefined,
+    situation: p.get("situation") ?? undefined,
+  };
+}
+
+// Persistência de sessão: refresh em result/offer não joga a lead pro início.
+const SAVED_KEY = "sacra_quiz_state_v1";
+type SavedState = {
+  stage: "result" | "offer";
+  answers: Record<string, string>;
+  name: string;
+};
+function loadSavedState(): SavedState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SAVED_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (
+      (s?.stage === "result" || s?.stage === "offer") &&
+      s?.answers &&
+      typeof s.answers === "object"
+    ) {
+      return { stage: s.stage, answers: s.answers, name: typeof s.name === "string" ? s.name : "" };
+    }
+    return null;
+  } catch {
+    return null; // JSON corrompido → ignora, segue fluxo normal
+  }
+}
 
 export function QuizApp() {
   const navigate = useNavigate();
-  const [stage, setStage] = useState<Stage>("hero");
-  const [name, setName] = useState("");
+  const preview = parsePreview();
+  // Estado salvo da sessão (preview de dev tem prioridade). Lido uma vez.
+  const savedRef = useRef<SavedState | null | undefined>(undefined);
+  if (savedRef.current === undefined) {
+    savedRef.current = preview ? null : loadSavedState();
+  }
+  const saved = savedRef.current;
+
+  const [stage, setStage] = useState<Stage>(
+    preview ? preview.stage : saved ? saved.stage : "hero",
+  );
+  const [name, setName] = useState(saved?.name ?? "");
   const [qIndex, setQIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(saved?.answers ?? {});
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [encouragement, setEncouragement] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -44,15 +113,32 @@ export function QuizApp() {
     captureUtms();
   }, []);
 
+  // Ao trocar de tela, volta pro topo (senão a oferta abre na altura em que estava o resultado).
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [stage]);
+
+  // Persiste só em result/offer (nunca durante o quiz). Atualiza ao navegar entre elas.
+  useEffect(() => {
+    if (preview) return; // preview de dev não persiste
+    if (stage !== "result" && stage !== "offer") return;
+    try {
+      sessionStorage.setItem(SAVED_KEY, JSON.stringify({ stage, answers, name }));
+    } catch {
+      // armazenamento indisponível → ignora, não quebra
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, answers, name]);
+
   const result = useMemo(() => {
-    if (stage !== "result" && stage !== "bridge" && stage !== "offer") return null;
+    if (stage !== "result" && stage !== "offer") return null;
     return computeArchetype(answers);
   }, [stage, answers]);
 
-  const archetype: Archetype | null = result?.archetype ?? null;
+  const archetype: Archetype | null = preview?.archetype ?? result?.archetype ?? null;
   const arche = archetype ? ARCHETYPES[archetype] : null;
-  const situation = answers["situacao"];
-  const desire = answers["desejo"];
+  const situation = answers["situacao"] ?? preview?.situation;
+  const desire = answers["desejo"] ?? preview?.desire;
   const bridge = arche && situation ? arche.bridges[situation] ?? null : null;
 
   const startQuiz = () => {
@@ -96,11 +182,12 @@ export function QuizApp() {
     if (stage !== "loading") return;
     setLoadingMsg(0);
     const messages = 6;
+    const step = 1200;
     const timers: number[] = [];
     for (let i = 1; i < messages; i++) {
-      timers.push(window.setTimeout(() => setLoadingMsg(i), 1200 * i));
+      timers.push(window.setTimeout(() => setLoadingMsg(i), step * i));
     }
-    timers.push(window.setTimeout(() => setStage("result"), 1200 * messages));
+    timers.push(window.setTimeout(() => setStage("result"), step * messages));
     // persiste lead no Supabase (best effort)
     void persistLead(answers).catch(() => {});
     return () => timers.forEach(clearTimeout);
@@ -121,7 +208,7 @@ export function QuizApp() {
         scores,
         desire: ans["desejo"] ?? null,
         situation: ans["situacao"] ?? null,
-        risk_flag: false,
+        risk_flag: answersHaveRisk(ans),
         ...utms,
       })
       .select("id")
@@ -167,10 +254,6 @@ export function QuizApp() {
     });
   }
 
-  function goToBridge() {
-    setStage("bridge");
-  }
-
   function goToOffer() {
     setStage("offer");
   }
@@ -181,7 +264,7 @@ export function QuizApp() {
     // Fire-and-forget: salva tracking session (fbp/fbc/ua) para cruzar no webhook
     void saveTrackingSession(externalId).catch(() => {});
     // InitiateCheckout com tick de espera para o beacon sair antes do redirect
-    await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz" });
+    await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz", value: 47 });
     const url = buildKirvanoUrl(KIRVANO_URL, { archetype, name, email, externalId });
     window.location.href = url;
   }
@@ -229,15 +312,6 @@ export function QuizApp() {
             setEmail={setEmail}
             emailSaved={emailSaved}
             onSaveEmail={saveEmail}
-            onContinue={goToBridge}
-          />
-        )}
-
-        {stage === "bridge" && arche && (
-          <BridgeScreen
-            key="bridge"
-            archetype={arche}
-            desire={desire}
             onContinue={goToOffer}
           />
         )}
@@ -248,6 +322,7 @@ export function QuizApp() {
             archetype={arche}
             desire={desire}
             onCheckout={checkout}
+            onBack={() => setStage("result")}
           />
         )}
       </AnimatePresence>
@@ -376,11 +451,14 @@ function QuestionScreen({
     if (!q) return;
     setShowOptions(false);
     setShowPrompt(!transition);
-    const promptDelay = transition ? 700 + transition.length * 30 + 800 : 0;
+    // A transição sobe pronta (instant); só esperamos um tempo de leitura
+    // antes da pergunta começar a digitar.
+    const promptDelay = transition ? 650 : 0;
     const t1 = transition
       ? window.setTimeout(() => setShowPrompt(true), promptDelay)
       : null;
-    const optDelay = promptDelay + 700 + q.prompt.length * 30 + 200;
+    const optDelay =
+      promptDelay + (transition ? 100 : 0) + q.prompt.length * 30 + 250;
     const t2 = window.setTimeout(() => setShowOptions(true), optDelay);
     return () => {
       if (t1) clearTimeout(t1);
@@ -407,6 +485,7 @@ function QuestionScreen({
               text={transition}
               resetKey={`t-${qIndex}`}
               italic
+              instant
             />
           )}
           {showPrompt && (
@@ -558,6 +637,63 @@ function AmbientParticles({ active }: { active: boolean }) {
 
 /* ============================== RESULT ============================== */
 
+// Reveal-on-scroll reutilizável.
+function Reveal({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 22 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.18 }}
+      transition={{ duration: 0.75, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// Fio-guia animado com micro-CTA. emphasis = estilo serif itálico (vs eyebrow dourado).
+function GuideThread({ label, emphasis }: { label: string; emphasis?: boolean }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-5">
+      <span
+        className={
+          emphasis
+            ? "max-w-xs px-6 text-center font-display text-base italic text-[color:var(--amethyst)]"
+            : "text-center text-[11px] font-medium uppercase tracking-[0.26em] text-[color:var(--gold-warm)]"
+        }
+      >
+        {label}
+      </span>
+      <svg width="22" height="56" viewBox="0 0 22 56" fill="none" className="overflow-visible">
+        <motion.path
+          d="M11 2 V38"
+          stroke="var(--gold)"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeDasharray="2 9"
+          initial={{ pathLength: 0 }}
+          whileInView={{ pathLength: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 1.1, ease: "easeOut" }}
+        />
+        <motion.path
+          d="M11 52 L4 39 H18 Z"
+          fill="var(--gold)"
+          style={{ transformBox: "fill-box", transformOrigin: "center" }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1, y: [0, 6, 0] }}
+          viewport={{ once: true }}
+          transition={{
+            opacity: { delay: 0.9, duration: 0.4 },
+            y: { delay: 1.2, duration: 1.6, repeat: Infinity, ease: "easeInOut" },
+          }}
+        />
+      </svg>
+    </div>
+  );
+}
+
 function ResultScreen({
   archetype,
   bridge,
@@ -580,14 +716,17 @@ function ResultScreen({
   onContinue: () => void;
 }) {
   const ctaLabel = (desire && DESIRE_CTA[desire]) || "Quero meu caminho de paz";
+  const r = archetype.result;
+  const [tab, setTab] = useState<"yes" | "no">("yes");
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6 }}
-      className="mx-auto max-w-2xl px-5 py-10 sm:px-8"
+      className="mx-auto max-w-xl px-5 pb-16 pt-10 sm:px-8"
     >
+      {/* Chat — avatar + fala da guia (mantido) */}
       <div className="flex items-start gap-3 sm:gap-5">
         <GuideAvatar size="corner" />
         <div className="flex-1 pt-1">
@@ -598,77 +737,131 @@ function ResultScreen({
         </div>
       </div>
 
-      <div className="rdp-shadow-soft mt-8 overflow-hidden rounded-3xl bg-white">
-        <div className="rdp-gradient-soft px-6 py-8 text-center sm:px-10">
-          <p className="font-display text-sm italic tracking-[0.2em] text-[color:var(--gold-warm)]">
-            ✦ PADRÃO RAIZ IDENTIFICADO ✦
-          </p>
-          <h2 className="mt-3 font-display text-4xl text-[color:var(--deep-purple)] sm:text-5xl">
-            {archetype.name}
-          </h2>
-          <p className="mt-2 text-base text-[color:var(--amethyst)] sm:text-lg">
-            {archetype.subtitle}
-          </p>
-        </div>
+      {/* Header arquétipo */}
+      <Reveal className="mt-10 text-center">
+        <p className="flex items-center justify-center gap-3 font-display text-[13px] italic uppercase tracking-[0.26em] text-[color:var(--gold-warm)]">
+          <span className="text-[color:var(--gold)]">✦</span>
+          Padrão raiz identificado
+          <span className="text-[color:var(--gold)]">✦</span>
+        </p>
+        <h1 className="mt-2 whitespace-nowrap font-display text-[clamp(1.9rem,8.4vw,4.5rem)] font-bold leading-[0.96] text-[color:var(--deep-purple)]">
+          {archetype.name}
+        </h1>
+        <p className="mt-2 font-display text-lg italic text-[color:var(--amethyst)]">
+          {r.tagline}
+        </p>
+      </Reveal>
 
-        <div className="space-y-6 px-6 py-7 sm:px-10">
-          {bridge && (
-            <p className="font-display text-lg italic leading-relaxed text-[color:var(--deep-purple)]/90">
-              {bridge}
+      <GuideThread label="Role e descubra" />
+
+      {/* Linha personalizada (situation) */}
+      {bridge && (
+        <Reveal>
+          <p className="mx-auto max-w-md text-center font-display text-xl italic leading-snug text-[color:var(--deep-purple)]">
+            {bridge}
+          </p>
+        </Reveal>
+      )}
+
+      {/* O que está acontecendo */}
+      <Reveal className="mt-8">
+        <h2 className="flex items-center gap-2 font-display text-2xl text-[color:var(--deep-purple)]">
+          <span className="text-[color:var(--gold-warm)]">›</span>O que está acontecendo
+        </h2>
+        <p
+          className="mt-3 leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
+          dangerouslySetInnerHTML={{ __html: r.happening }}
+        />
+        <p className="mt-5 border-l-[3px] border-[color:var(--gold)] pl-5 font-display text-xl italic leading-snug text-[color:var(--deep-purple)]">
+          “{r.mirror}”
+        </p>
+      </Reveal>
+
+      <GuideThread label="A verdade sobre isso" emphasis />
+
+      {/* Card verdade — escuro */}
+      <Reveal>
+        <section
+          className="relative overflow-hidden rounded-3xl px-7 py-11 text-center sm:px-9"
+          style={{
+            background: "radial-gradient(130% 110% at 50% 0%, #382b46, #2a2236)",
+            boxShadow: "0 26px 60px -40px rgba(42,34,54,.65)",
+          }}
+        >
+          <div className="mx-auto max-w-md">
+            <p className="text-[10px] uppercase tracking-[0.26em] text-[color:var(--gold)]">
+              A verdade que você precisa ouvir
             </p>
-          )}
-          <div>
-            <h3 className="font-display text-xl text-[color:var(--deep-purple)]">
-              O que está acontecendo
+            <h3 className="mt-3 font-display text-3xl font-semibold leading-tight text-[#fcf7ef]">
+              {r.truthTitle}{" "}
+              <em className="italic text-[color:var(--gold)]">{r.truthTitleEm}</em>
             </h3>
-            <div
-              className="rdp-prose mt-2 leading-relaxed text-[color:var(--amethyst)]"
-              dangerouslySetInnerHTML={{ __html: archetype.mechanismHtml }}
+            <p
+              className="mt-4 text-[15.5px] leading-relaxed text-[#d6cdda] [&_strong]:font-semibold [&_strong]:text-[#fcf7ef]"
+              dangerouslySetInnerHTML={{ __html: r.truthBody }}
             />
-          </div>
-
-          <div
-            className="rdp-verdade rounded-2xl border border-[color:var(--lavender)]/30 bg-[color:var(--milk-warm)] px-5 py-5"
-            dangerouslySetInnerHTML={{ __html: archetype.desarmeHtml }}
-          />
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[color:var(--border)] bg-white px-5 py-5">
-              <p className="text-xs font-medium uppercase tracking-widest text-[color:var(--gold-warm)]">
-                O que esperar
+            <div className="mt-6 rounded-xl border border-[rgba(217,197,165,0.25)] bg-white/5 px-5 py-4">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">
+                {r.verseRef}
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-[color:var(--amethyst)]">
-                {archetype.esperar}
+              <p className="mt-2 font-display text-lg italic leading-snug text-[#fcf7ef]">
+                “{r.verseText}”
               </p>
             </div>
-            <div className="rounded-2xl border border-[color:var(--border)] bg-white px-5 py-5">
-              <p className="text-xs font-medium uppercase tracking-widest text-[color:var(--gold-warm)]">
-                O que não esperar
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-[color:var(--amethyst)]">
-                {archetype.naoEsperar}
-              </p>
-            </div>
+            <p className="mt-5 whitespace-pre-line font-display text-[17px] italic leading-relaxed text-[#e6deed]">
+              {r.seal}
+            </p>
           </div>
+        </section>
+      </Reveal>
+
+      {/* Toggle esperar / não esperar */}
+      <Reveal className="mt-8">
+        <div className="overflow-hidden rounded-2xl border border-[color:var(--border)] bg-white">
+          <div className="flex">
+            {(["yes", "no"] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setTab(k)}
+                className={`flex-1 px-3 py-4 text-[11px] font-semibold uppercase tracking-[0.16em] transition ${
+                  tab === k
+                    ? "bg-[color:var(--milk-warm)] text-[color:var(--gold-warm)]"
+                    : "text-[color:var(--lavender)]"
+                }`}
+              >
+                {k === "yes" ? "O que esperar" : "O que não esperar"}
+              </button>
+            ))}
+          </div>
+          <motion.p
+            key={tab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className="px-6 py-6 text-sm leading-relaxed text-[color:var(--amethyst)]"
+          >
+            {tab === "yes" ? archetype.esperar : archetype.naoEsperar}
+          </motion.p>
         </div>
-      </div>
+      </Reveal>
+
+      <GuideThread label="Já entendi meu padrão. Me mostra o caminho" emphasis />
 
       {/* Captura opcional de email */}
-      <div className="rdp-shadow-soft mt-6 rounded-2xl border border-[color:var(--border)] bg-white p-5">
-        {emailSaved ? (
-          <p className="text-center text-[color:var(--amethyst)]">
-            Pronto. Enviei seu resultado pro seu email 🤍
-          </p>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (email.includes("@")) onSaveEmail();
-            }}
-            className="flex flex-col gap-3 sm:flex-row sm:items-end"
-          >
-            <div className="flex-1">
-              <p className="font-display text-lg text-[color:var(--deep-purple)]">
+      <Reveal>
+        <div className="rounded-2xl border border-[color:var(--border)] bg-white p-6">
+          {emailSaved ? (
+            <p className="text-center text-[color:var(--amethyst)]">
+              Pronto. Enviei seu resultado pro seu email 🤍
+            </p>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (email.includes("@")) onSaveEmail();
+              }}
+            >
+              <p className="font-display text-xl text-[color:var(--deep-purple)]">
                 Quer guardar esse resultado?
               </p>
               <p className="text-sm text-[color:var(--amethyst)]">
@@ -679,194 +872,364 @@ function ResultScreen({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
-                className="mt-3 w-full rounded-xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--deep-purple)] placeholder:text-[color:var(--amethyst)]/60 focus:border-[color:var(--lavender)] focus:outline-none"
+                className="mt-3 w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none"
                 maxLength={120}
               />
-            </div>
-            <button
-              type="submit"
-              className="rounded-xl border border-[color:var(--lavender)] bg-[color:var(--milk-warm)] px-5 py-3 font-medium text-[color:var(--deep-purple)] transition hover:bg-[color:var(--lavender)]/30"
-            >
-              Enviar
-            </button>
-          </form>
-        )}
-      </div>
-
-      <button
-        onClick={onContinue}
-        className="rdp-gradient-cta rdp-shadow-soft mt-8 w-full rounded-2xl px-6 py-5 font-medium text-[color:var(--deep-purple)] transition-transform hover:scale-[1.01] active:scale-[0.99]"
-      >
-        {ctaLabel} →
-      </button>
-    </motion.section>
-  );
-}
-
-/* ============================== BRIDGE (ponte dedicada ao CTA) ============================== */
-
-function BridgeScreen({
-  archetype,
-  desire,
-  onContinue,
-}: {
-  archetype: ArchetypeData;
-  desire?: string;
-  onContinue: () => void;
-}) {
-  const ctaLabel = (desire && DESIRE_CTA[desire]) || "Quero meu caminho de paz";
-  const quote = (desire && DESIRE_QUOTE[desire]) || null;
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.6 }}
-      className="mx-auto max-w-2xl px-5 py-14 sm:px-8 sm:py-20"
-    >
-      <div className="rdp-shadow-soft rdp-gradient-soft rounded-3xl border border-[color:var(--lavender)]/30 px-6 py-10 text-center sm:px-12 sm:py-14">
-        <div className="mx-auto flex items-center justify-center gap-3 text-[color:var(--gold-warm)]">
-          <span className="h-px w-10 bg-[color:var(--gold-warm)]/50" />
-          <span aria-hidden>✦</span>
-          <span className="h-px w-10 bg-[color:var(--gold-warm)]/50" />
+              <button
+                type="submit"
+                className="mt-2.5 w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] py-3.5 text-sm font-medium text-[color:var(--deep-purple)] transition hover:bg-[color:var(--lavender)]/25"
+              >
+                Enviar
+              </button>
+            </form>
+          )}
         </div>
+      </Reveal>
 
-        <p className="mt-6 text-xs font-medium uppercase tracking-[0.28em] text-[color:var(--amethyst)]">
-          Você marcou como sua maior prioridade
-        </p>
-
-        {quote && (
-          <p className="mt-5 font-display text-2xl italic leading-snug text-[color:var(--gold-warm)] sm:text-3xl">
-            “{quote}”
-          </p>
-        )}
-
-        <p className="mx-auto mt-7 max-w-md text-base leading-relaxed text-[color:var(--deep-purple)] sm:text-lg">
-          Existe um caminho desenhado especificamente pra esse desejo. <br className="hidden sm:block" />
-          Pra esse padrão. Pra mulheres como você.
-        </p>
-
+      {/* CTA final (desejo) */}
+      <Reveal className="mt-8 text-center">
         <button
           onClick={onContinue}
-          className="rdp-btn-gradient-hover rdp-shadow-soft mt-9 inline-flex items-center justify-center gap-3 rounded-full px-8 py-4 font-medium text-[color:var(--milk)] sm:px-10"
+          className="rdp-btn-gold block w-full rounded-full px-6 py-5 font-semibold transition-transform hover:-translate-y-0.5"
+          style={{ boxShadow: "0 18px 40px -20px rgba(201,168,106,.8)" }}
         >
-          {ctaLabel} <span aria-hidden>→</span>
+          {ctaLabel} →
         </button>
-
-        <p className="mt-6 font-display text-sm italic text-[color:var(--amethyst)]">
-          Você vê tudo antes de decidir. <br /> Sem compromisso, sem pressão.
+        <p className="mt-3.5 text-xs text-[color:var(--amethyst)]">
+          Leva 30s pra ver tudo. Sem compromisso.
         </p>
-      </div>
+      </Reveal>
     </motion.section>
   );
 }
 
 /* ============================== OFFER ============================== */
 
+// Legenda word-by-word (estilo caption): as palavras acendem no ritmo da voz,
+// a frase passa suavemente, e os trechos fortes ganham cor e peso.
+function NarrationCaption({ audioSrc }: { audioSrc?: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number>(0);
+  const startedRef = useRef(false);
+  const [now, setNow] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [muted, setMuted] = useState(false);
+
+  const total = NARRATION[NARRATION.length - 1].end;
+
+  const tryPlay = () => {
+    const a = audioRef.current;
+    if (!a || !audioSrc) return;
+    a.muted = muted;
+    a.play()
+      .then(() => setBlocked(false))
+      .catch(() => setBlocked(true));
+  };
+
+  const toggleMute = () => {
+    const a = audioRef.current;
+    setMuted((m) => {
+      const n = !m;
+      if (a) a.muted = n;
+      return n;
+    });
+  };
+
+  const begin = () => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    tryPlay();
+  };
+
+  // Loop suave de tempo (rAF) só enquanto a voz toca.
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const loop = () => {
+      setNow(a.currentTime);
+      if (a.duration > 0) setProgress(a.currentTime / a.duration);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    const onPlay = () => {
+      setPlaying(true);
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    const onStop = () => {
+      setPlaying(false);
+      cancelAnimationFrame(rafRef.current);
+    };
+    a.addEventListener("play", onPlay);
+    a.addEventListener("pause", onStop);
+    a.addEventListener("ended", onStop);
+    return () => {
+      a.removeEventListener("play", onPlay);
+      a.removeEventListener("pause", onStop);
+      a.removeEventListener("ended", onStop);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  // Toca quando a seção entra na viewport.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (es) => es.forEach((e) => { if (e.isIntersecting) { begin(); io.disconnect(); } }),
+      { threshold: 0.3 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autoplay bloqueado: o primeiro toque libera o som.
+  useEffect(() => {
+    if (!blocked) return;
+    const h = () => tryPlay();
+    window.addEventListener("pointerdown", h, { once: true });
+    return () => window.removeEventListener("pointerdown", h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocked]);
+
+  let idx = NARRATION.findIndex((c) => now >= c.start && now < c.end);
+  if (idx < 0) idx = now >= total ? NARRATION.length - 1 : 0;
+  const cue = NARRATION[idx];
+  const verseShown = !!cue.ref && now >= cue.end - 0.4;
+
+  return (
+    <div ref={rootRef} className="mt-2">
+      {/* Guia — foto à esquerda, nome + status à direita (ocupa menos altura) */}
+      <div className="flex items-center gap-3">
+        <GuideAvatar size="chat" src={jaquelineAvatar} alt="Jaqueline" />
+        <div className="leading-tight">
+          <p className="font-display text-lg text-[color:var(--deep-purple)]">Jaqueline</p>
+          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-emerald-700">
+            <span className="relative inline-flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            online agora
+          </p>
+        </div>
+      </div>
+
+      {/* Caixa de legenda — palavras acendem no ritmo da voz */}
+      <div className="relative mx-auto mt-5 flex min-h-[150px] max-w-md items-center justify-center px-2">
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={idx}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="w-full text-center font-sans text-[19px] leading-[1.7] tracking-[0.005em] sm:text-[21px]"
+          >
+            {cue.words.map((w, i) => {
+              const shown = now >= w.t - 0.02;
+              let cls = shown
+                ? "text-[color:var(--deep-purple)]"
+                : "text-[color:var(--deep-purple)]/20";
+              if (w.em === "strong") {
+                cls = shown
+                  ? "font-semibold text-[color:var(--gold-warm)]"
+                  : "font-semibold text-[color:var(--gold-warm)]/25";
+              } else if (w.em === "verse") {
+                cls = shown
+                  ? "italic text-[color:var(--amethyst)]"
+                  : "italic text-[color:var(--amethyst)]/25";
+              }
+              return (
+                <span key={i} className={`transition-colors duration-300 ${cls}`}>
+                  {w.text}
+                  {i < cue.words.length - 1 ? " " : ""}
+                </span>
+              );
+            })}
+            {cue.ref && (
+              <span
+                className={`mt-2 block text-[11px] uppercase tracking-[0.2em] text-[color:var(--gold-warm)] transition-opacity duration-500 ${
+                  verseShown ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                {cue.ref}
+              </span>
+            )}
+          </motion.p>
+        </AnimatePresence>
+      </div>
+
+      {/* Toque para começar — discreto e premium (autoplay bloqueado) */}
+      {blocked && !playing && (
+        <motion.button
+          type="button"
+          onClick={tryPlay}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.55, 1, 0.55] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          className="mx-auto mt-3 flex items-center gap-2.5 text-[10px] uppercase tracking-[0.3em] text-[color:var(--gold-warm)]"
+        >
+          <span className="h-px w-5 bg-[color:var(--gold-warm)]/50" />
+          toque para começar
+          <span className="h-px w-5 bg-[color:var(--gold-warm)]/50" />
+        </motion.button>
+      )}
+
+      {/* Progresso dourado + mute */}
+      <div className="mx-auto mt-4 flex max-w-md items-center gap-3">
+        <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-[color:var(--lavender)]/25">
+          <div
+            className="h-full rounded-full bg-[color:var(--gold-warm)]"
+            style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }}
+          />
+        </div>
+        {audioSrc && (
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={muted ? "Ativar som" : "Silenciar"}
+            className="shrink-0 transition-colors"
+          >
+            {muted ? (
+              <VolumeX className="h-[22px] w-[22px] text-red-500" strokeWidth={2.25} />
+            ) : (
+              <Volume2 className="h-[22px] w-[22px] text-[color:var(--amethyst)] transition-colors hover:text-[color:var(--deep-purple)]" />
+            )}
+          </button>
+        )}
+      </div>
+
+      <p className="mx-auto mt-2 max-w-md text-center text-[11px] uppercase tracking-[0.18em] text-[color:var(--amethyst)]">
+        ouça e entenda porque funciona
+      </p>
+
+      {audioSrc && <audio ref={audioRef} src={audioSrc} preload="auto" playsInline />}
+    </div>
+  );
+}
+
 function OfferScreen({
   archetype,
   desire,
   onCheckout,
+  onBack,
 }: {
   archetype: ArchetypeData;
   desire?: string;
   onCheckout: () => void;
+  onBack: () => void;
 }) {
   const ctaLabel = (desire && DESIRE_CTA[desire]) || "Eu creio — quero minha paz";
   const quote = (desire && DESIRE_QUOTE[desire]) || null;
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
-      className="mx-auto max-w-2xl px-5 py-12 sm:px-8"
+      className="mx-auto max-w-2xl px-5 pb-12 pt-3 sm:px-8 sm:pt-4"
     >
-      {/* O CAMINHO — eco do desejo */}
-      <section className="text-center">
-        <p className="font-display text-sm italic tracking-[0.22em] text-[color:var(--gold-warm)]">
-          ✦ O CAMINHO ✦
-        </p>
-        <h2 className="mt-4 font-display text-4xl leading-tight text-[color:var(--deep-purple)] sm:text-5xl">
-          Você lembra do que <br className="hidden sm:block" /> você marcou no final?
-        </h2>
-        {quote && (
-          <p className="mx-auto mt-6 max-w-lg font-display text-2xl italic leading-snug text-[color:var(--gold-warm)] sm:text-[26px]">
-            “{quote}”
-          </p>
-        )}
-        <p className="mx-auto mt-6 max-w-md text-[color:var(--deep-purple)]">
-          Essa é a sua direção. <br />
-          É o destino que seu corpo quer chegar.
-        </p>
-        <p className="mx-auto mt-4 max-w-lg text-[color:var(--amethyst)]">
-          E o caminho — pra esse padrão específico, pra essa direção específica —
-          foi desenhado em <strong className="text-[color:var(--deep-purple)]">14 sessões guiadas</strong>.
-          14 sinais consecutivos. Em 7 dias.
-        </p>
-        <p className="mt-8 text-xs uppercase tracking-[0.22em] text-[color:var(--amethyst)]">
-          Esse caminho tem nome
-        </p>
-      </section>
+      {/* Voltar discreto ao resultado (sem refazer o quiz) */}
+      <button
+        type="button"
+        onClick={onBack}
+        className="-ml-1 mb-2 inline-flex items-center gap-1 text-[13px] text-[color:var(--amethyst)] transition-colors hover:text-[color:var(--deep-purple)]"
+      >
+        <span aria-hidden>←</span> Voltar
+      </button>
 
-      {/* CARD ROTINA DE PAZ */}
-      <div className="rdp-shadow-soft mt-6 overflow-hidden rounded-3xl bg-white">
-        <div className="rdp-gradient-soft px-6 py-8 text-center sm:px-10">
-          <p className="font-display text-xs italic tracking-[0.28em] text-[color:var(--gold-warm)]">
+      <NarrationCaption audioSrc={narracaoAudio} />
+
+      {/* CARD ROTINA DE PAZ — sempre visível (flutua sobre o fundo) */}
+      <div
+        className="mt-8 overflow-hidden rounded-2xl bg-white sm:rounded-3xl"
+        style={{ boxShadow: "0 34px 70px -22px rgba(68,58,82,0.38)" }}
+      >
+        <div className="rdp-gradient-soft px-5 py-7 text-center sm:px-10 sm:py-8">
+          <p className="font-display text-[11px] sm:text-xs italic tracking-[0.28em] text-[color:var(--gold-warm)]">
             MÉTODO COMPLETO · 7 DIAS
           </p>
-          <h3 className="mt-3 font-display text-5xl text-[color:var(--deep-purple)] sm:text-6xl">
-            Rotina de <em className="not-italic text-[color:var(--gold-warm)]">Paz</em>
-          </h3>
-          <p className="mt-3 font-display text-lg italic text-[color:var(--amethyst)]">
-            O método guiado para a Mente Que Não Desliga.
+          <div
+            className="mx-auto mt-4 w-full max-w-lg overflow-hidden rounded-3xl p-[1.5px]"
+            style={{
+              background:
+                "linear-gradient(135deg, #E8D3A6 0%, #C9A876 45%, #B58E50 100%)",
+              boxShadow: "0 22px 50px -16px rgba(201,168,118,0.6)",
+            }}
+          >
+            <img
+              src={rotinaMockup}
+              alt="Rotina de Paz"
+              className="block w-full rounded-[calc(1.5rem-1px)]"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <p className="mt-3 font-display text-base sm:text-lg italic text-[color:var(--amethyst)]">
+            O método guiado para desligar o alarme do medo e trazer alívio.
           </p>
         </div>
 
         {/* O QUE VOCÊ RECEBE */}
-        <div className="space-y-7 px-6 py-8 sm:px-10">
+        <div className="space-y-7 px-5 py-7 sm:px-10 sm:py-8">
           <section>
             <SectionTitle>O que você recebe</SectionTitle>
-            <p className="mt-3 leading-relaxed text-[color:var(--deep-purple)]">
-              <strong>14 sessões guiadas em áudio</strong> — 7 capítulos pra usar de manhã, 7
-              capítulos pra usar à noite. Cada sessão de 8 a 12 minutos. Cabe entre uma tarefa
-              e outra, antes de dormir, antes da casa acordar.
+            <p className="mt-3 text-[15px] sm:text-base leading-relaxed text-[color:var(--amethyst)]">
+              <strong className="font-semibold text-[color:var(--deep-purple)]">14 sessões guiadas em áudio</strong>:{" "}
+              <strong className="font-semibold text-[color:var(--deep-purple)]">7 capítulos</strong> pra usar de manhã e{" "}
+              <strong className="font-semibold text-[color:var(--deep-purple)]">7 à noite</strong>.
             </p>
-            <p className="mt-4 leading-relaxed text-[color:var(--deep-purple)]">
-              Cada áudio segue <strong>4 movimentos</strong>: <strong>respiração</strong> que
-              desativa o modo de sobrevivência, <strong>palavra com contexto</strong> (não
-              versículo solto), <strong>exercício de declaração</strong>, e <strong>selagem</strong>
-              {" "}— uma identidade que você leva pro dia ou pro sono.
+            <p className="mt-2.5 text-[15px] sm:text-base leading-relaxed text-[color:var(--amethyst)]">
+              Cada sessão tem de{" "}
+              <strong className="font-semibold text-[color:var(--deep-purple)]">8 a 12 minutos</strong> — cabe entre uma
+              tarefa e outra, antes de dormir, antes da casa acordar.
             </p>
           </section>
 
           {/* ESPECIALMENTE PRA VOCÊ — capítulos do arquétipo */}
           <section>
             <SectionTitle>Especialmente pra você</SectionTitle>
-            <p className="mt-3 text-[color:var(--amethyst)]">
+            <p className="mt-3 text-[15px] sm:text-base text-[color:var(--amethyst)]">
               Dois capítulos foram feitos especificamente para o seu padrão:
             </p>
             <ul className="mt-4 space-y-3">
               {archetype.chapters.map((c, i) => (
                 <li
                   key={`${c.num}-${c.period}-${i}`}
-                  className="flex gap-4 rounded-2xl border border-[color:var(--lavender)]/30 bg-[color:var(--milk-warm)] px-4 py-4"
+                  className="flex gap-3 sm:gap-4 overflow-hidden rounded-2xl px-3 py-3.5 sm:px-4 sm:py-4"
+                  style={{
+                    background: "linear-gradient(135deg, #574868 0%, #41345a 100%)",
+                    boxShadow: "0 14px 34px -20px rgba(42,34,54,0.6)",
+                  }}
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--rose-soft)] font-display text-sm italic text-[color:var(--amethyst)]">
+                  <span className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--gold-warm)]/60 font-display text-sm italic text-[#fbe7b4]">
                     {c.num}
                   </span>
-                  <div className="flex-1">
-                    <p className="font-display text-lg text-[color:var(--deep-purple)]">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-base sm:text-lg leading-snug text-[#fcf7ef]">
                       {c.title}
                     </p>
-                    <p className="mt-1 text-sm leading-relaxed text-[color:var(--amethyst)]">
-                      <strong className="text-[color:var(--deep-purple)]">{c.period}.</strong>{" "}
+                    <p className="mt-1 text-[13px] sm:text-sm leading-relaxed text-[#d6cdda]">
+                      <strong className="font-semibold text-[color:var(--gold-warm)]">{c.period}.</strong>{" "}
                       {c.description}
                     </p>
                   </div>
                 </li>
               ))}
             </ul>
+            {/* micro-CTA 2 */}
+            <button
+              type="button"
+              onClick={onCheckout}
+              className="group mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--gold-warm)]/40 bg-white/60 px-4 py-3 text-[13px] sm:text-sm font-medium text-[color:var(--deep-purple)] transition-all hover:-translate-y-[1px] hover:border-[color:var(--gold-warm)] hover:bg-[color:var(--milk-warm)]"
+            >
+              <span>Quero esses capítulos pra mim</span>
+              <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+            </button>
           </section>
 
           {/* JUNTO COM O MÉTODO */}
@@ -874,82 +1237,137 @@ function OfferScreen({
             <SectionTitle>Junto com o método, você leva</SectionTitle>
             <ul className="mt-4 divide-y divide-[color:var(--border)]">
               {[
-                ["Áudio Mestre de Ativação", "preparação completa para os 7 dias"],
-                ["E-book \u201cDormir Melhor Hoje\u201d", "neurociência aplicada ao descanso"],
-                ["Devocional \u201c30 Dias com Jesus\u201d", "pra continuar o caminho depois dos 7 dias"],
-                ["Parábolas de Jesus em Imagens", "Palavra que entra pelo olhar"],
-                ["148 Louvores do Reino", "em frequência terapêutica"],
+                ["Método completo dentro do APP", ""],
+                ["App guiado", "Tudo organizado e didático no seu celular — o caminho montado na ordem certa. Você abre, e ele sabe onde você parou."],
+                ["Volume I — Despertar", "7 Manhãs de Renovação Neural"],
+                ["Volume II — Repouso", "7 Noites de Selagem Profunda"],
                 ["Acesso vitalício pelo app", "você ouve quando quiser, quantas vezes precisar"],
               ].map(([title, desc]) => (
-                <li key={title} className="flex gap-3 py-3">
-                  <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--rose-soft)] text-[color:var(--deep-purple)]">
-                    ✓
+                <li key={title} className="flex items-start gap-3 py-3 text-[15px] sm:text-base">
+                  <span
+                    className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#fbe7b4]"
+                    style={{ background: "linear-gradient(135deg, #7d6a96 0%, #5f4f7d 100%)" }}
+                  >
+                    <Check className="h-3 w-3" strokeWidth={2.5} aria-hidden />
                   </span>
                   <p className="leading-relaxed text-[color:var(--deep-purple)]">
-                    <strong>{title}</strong>{" "}
-                    <span className="text-[color:var(--amethyst)]">— {desc}</span>
+                    <strong>{title}</strong>
+                    {desc && <> <span className="text-[color:var(--amethyst)]">— {desc}</span></>}
                   </p>
                 </li>
               ))}
             </ul>
+
+            {/* Bônus — título dourado + imagem */}
+            <div className="mt-6">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-[color:var(--gold-warm)]" aria-hidden />
+                <span className="font-display text-sm sm:text-base italic text-[color:var(--gold-warm)]">
+                  Bônus para fortalecer sua Rotina de Paz
+                </span>
+              </div>
+              <img
+                src={bonusImg}
+                alt="Bônus da Rotina de Paz"
+                className="mt-3 w-full rounded-2xl"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
           </section>
         </div>
 
         {/* PREÇO */}
-        <div className="rdp-gradient-soft mx-6 mb-6 rounded-2xl border border-[color:var(--lavender)]/30 px-6 py-8 text-center sm:mx-10 sm:px-10">
-          <p className="text-[color:var(--amethyst)] line-through">De R$ 197,00</p>
+        <div className="rdp-gradient-soft mx-5 mb-6 rounded-2xl border border-[color:var(--lavender)]/30 px-5 py-7 text-center sm:mx-10 sm:px-10 sm:py-8">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[color:var(--gold-warm)]/40 bg-white/70 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[color:var(--deep-purple)]">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--gold-warm)] opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--gold-warm)]" />
+            </span>
+            Oferta especial desta página
+          </div>
+          <p className="text-sm sm:text-base text-[color:var(--amethyst)] line-through">De R$ 129,00</p>
           <p className="mt-2 font-display text-[color:var(--deep-purple)]">
-            <span className="text-3xl">R$</span>{" "}
-            <span className="font-display text-7xl italic text-[color:var(--gold-warm)]">67</span>
+            <span className="text-2xl sm:text-3xl align-top">R$</span>{" "}
+            <span className="font-display text-[64px] sm:text-7xl leading-none italic text-[color:var(--gold-warm)]">47</span>
           </p>
-          <p className="mt-1 text-[color:var(--deep-purple)]">
+          <p className="mt-2 text-[15px] sm:text-base text-[color:var(--deep-purple)]">
             à vista <span className="mx-2 text-[color:var(--amethyst)]">ou</span>{" "}
-            <strong>12× de R$ 5,59</strong>
+            <strong>10× de R$ 5,60</strong>
           </p>
-          <p className="mt-3 font-display text-sm italic text-[color:var(--amethyst)]">
+          <p className="mt-3 font-display text-[13px] sm:text-sm italic text-[color:var(--amethyst)]">
             Pagamento único · Acesso permanente · Sem mensalidade
           </p>
-        </div>
-
-        {/* GARANTIA */}
-        <div className="mx-6 mb-8 rounded-2xl border border-[color:var(--lavender)]/30 bg-[color:var(--milk-warm)] px-6 py-6 sm:mx-10">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--rose-soft)] text-lg">
-              🛡
-            </span>
-            <h4 className="font-display text-xl text-[color:var(--deep-purple)]">
-              Garantia incondicional de 7 dias
-            </h4>
-          </div>
-          <p className="mt-3 leading-relaxed text-[color:var(--deep-purple)]">
-            Faça a jornada completa. Se não sentir mudança, devolvo cada centavo.
-            Sem formulário, sem pergunta, sem julgamento. Você só me escreve.
+          <p className="mt-2 text-[11px] text-[color:var(--amethyst)]">
+            🔒 Acesso imediato · Pagamento 100% seguro
           </p>
         </div>
 
         {/* FECHAMENTO + CTA */}
-        <div className="border-t border-[color:var(--border)] px-6 pb-8 pt-6 text-center sm:px-10">
+        <div className="px-5 pb-6 pt-2 text-center sm:px-10">
           {quote && (
-            <p className="mx-auto max-w-lg font-display text-lg italic text-[color:var(--amethyst)]">
+            <p className="mx-auto max-w-lg font-display text-base sm:text-lg italic text-[color:var(--amethyst)]">
               Você lembra do seu desejo: “{quote}”
             </p>
           )}
-          <p className="mt-3 font-display text-xl text-[color:var(--deep-purple)] sm:text-2xl">
+          <p className="mt-3 font-display text-lg sm:text-2xl text-[color:var(--deep-purple)]">
             Esse é o caminho específico pra ele.
           </p>
 
           <button
             onClick={onCheckout}
-            className="rdp-btn-gradient-hover rdp-shadow-soft mt-6 inline-flex w-full items-center justify-center gap-3 rounded-full px-6 py-4 text-sm font-medium uppercase tracking-[0.18em] text-[color:var(--milk)] sm:w-auto sm:px-12"
+            aria-label={ctaLabel}
+            className="rdp-btn-gradient-hover rdp-shadow-soft mt-6 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-full px-6 py-4 text-[13px] sm:text-sm font-medium uppercase tracking-[0.16em] sm:tracking-[0.18em] text-[color:var(--milk)] sm:w-auto sm:px-12"
           >
-            Eu creio — quero minha paz <span aria-hidden>→</span>
+            <span>{ctaLabel}</span> <span aria-hidden>→</span>
           </button>
-          <p className="sr-only">{ctaLabel}</p>
-          <p className="mt-4 text-xs text-[color:var(--amethyst)]">
+          <p className="mt-4 text-[11px] sm:text-xs text-[color:var(--amethyst)]">
             🔒 Acesso imediato após pagamento · Pagamento 100% seguro
           </p>
         </div>
+
+        {/* GARANTIA */}
+        <div className="mx-5 mb-8 rounded-2xl border border-[color:var(--lavender)]/30 bg-[color:var(--milk-warm)] px-5 py-5 sm:mx-10 sm:px-6 sm:py-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--rose-soft)] text-lg">
+              🛡
+            </span>
+            <h4 className="font-display text-lg sm:text-xl leading-snug text-[color:var(--deep-purple)]">
+              Garantia incondicional de 7 dias
+            </h4>
+          </div>
+          <p className="mt-3 text-[15px] sm:text-base leading-relaxed text-[color:var(--deep-purple)]">
+            Faça a jornada completa. Se não sentir mudança, devolvo cada centavo.
+            Sem formulário, sem pergunta, sem julgamento. Você só me escreve.
+          </p>
+        </div>
       </div>
+
+      {/* CTA fixo no mobile */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--border)] bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 sm:hidden"
+        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+      >
+        <div className="mx-auto flex max-w-md items-center justify-between gap-3">
+          <div className="leading-tight">
+            <p className="font-display text-base text-[color:var(--deep-purple)]">
+              R$ 47 <span className="text-xs font-normal text-[color:var(--amethyst)]">ou 10× R$ 5,60</span>
+            </p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--amethyst)]">
+              Acesso imediato
+            </p>
+          </div>
+          <button
+            onClick={onCheckout}
+            aria-label={ctaLabel}
+            className="rdp-btn-gradient-hover rdp-shadow-soft inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full px-5 py-3 text-xs font-medium uppercase tracking-[0.14em] text-[color:var(--milk)]"
+          >
+            Quero minha paz <span aria-hidden>→</span>
+          </button>
+        </div>
+      </div>
+      {/* spacer pra não cobrir o conteúdo no mobile */}
+      <div aria-hidden className="h-20 sm:hidden" />
     </motion.section>
   );
 }
