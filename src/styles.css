@@ -112,7 +112,7 @@
   box-shadow: 0 6px 24px -10px rgba(68, 58, 82, 0.22);
 }
 
-/* Botao roxo que vira gradiente no hover/active */
+/* Botao roxo que vira gradiente (rosa -> lavanda -> dourado) no hover/active */
 .rdp-btn-gradient-hover {
   background-color: var(--deep-purple);
   transition: background-color 300ms ease, transform 200ms ease, box-shadow 300ms ease;
@@ -130,6 +130,80 @@
   background-color: var(--deep-purple);
   opacity: 0.4;
 }
+
+/* Variante dourada — usada só na ponte (contraste com o bloco roxo "O Porquê") */
+.rdp-btn-gold {
+  background-color: var(--gold-warm);
+  color: var(--deep-purple);
+  transition: background-color 300ms ease, background-image 300ms ease,
+    transform 200ms ease, box-shadow 300ms ease;
+}
+.rdp-btn-gold:hover,
+.rdp-btn-gold:active {
+  background-image: linear-gradient(135deg, #E3CEA8 0%, #D9C5A5 45%, #C9A876 100%);
+  background-color: transparent;
+}
+
+/* ============ Splash — tema noturno "Haja Luz" ============ */
+
+:root {
+  --night-1: #1A1326;
+}
+
+.rdp-night {
+  background:
+    radial-gradient(ellipse at top, rgba(196, 168, 188, 0.10), transparent 55%),
+    radial-gradient(ellipse at bottom right, rgba(212, 165, 181, 0.08), transparent 60%),
+    var(--night-1);
+  color: #F4E9EE;
+}
+.rdp-gold-text {
+  background: linear-gradient(135deg, #E8C9A0 0%, #C9A876 60%, #D4A5B5 110%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+@keyframes rdp-logo-in {
+  0% { opacity: 0; transform: scale(0.85); filter: blur(8px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+.rdp-logo-in { animation: rdp-logo-in 900ms cubic-bezier(.2,.7,.3,1.1) both; }
+@keyframes rdp-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.rdp-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(232,201,160,0.18) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: rdp-shimmer 2.4s linear infinite;
+}
+.rdp-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.rdp-particle-splash {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255,235,190,0.95) 0%, rgba(232,201,160,0.55) 45%, rgba(232,201,160,0) 75%);
+  box-shadow: 0 0 8px rgba(255,220,170,0.7), 0 0 18px rgba(232,201,160,0.35);
+  opacity: 0;
+  animation: rdp-particle-rise linear infinite;
+}
+@keyframes rdp-particle-rise {
+  0%   { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
+  12%  { opacity: 1; }
+  85%  { opacity: 0.9; }
+  100% { transform: translate3d(var(--rdp-drift, 0px), -110vh, 0) scale(1.1); opacity: 0; }
+}
+@keyframes rdp-haja-luz {
+  0%   { opacity: 0; letter-spacing: 0.5em; filter: blur(6px); }
+  40%  { opacity: 0.9; letter-spacing: 0.42em; filter: blur(0); }
+  100% { opacity: 0.75; letter-spacing: 0.42em; filter: blur(0); }
+}
+.rdp-haja-luz { animation: rdp-haja-luz 1.6s ease-out both; }
 
 /* Rich HTML rendered from quiz content */
 .rdp-prose p { margin-bottom: 0.85rem; }
