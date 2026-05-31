@@ -311,8 +311,9 @@ npx wrangler pages deploy dist --project-name=rotina-de-paz --branch=main
 | `/admin/clientes` | Tabela de alunas + drawer de detalhes | ✅ |
 | `/admin/webhooks` | Logs Kirvano + validação HMAC + replay | ✅ |
 | `/admin/leads` | Leads do Quiz — KPIs, gráficos, tabela, CSV export | ✅ |
+| `/admin/quiz` | Analytics Quiz — respostas por pergunta, arquétipos, taxa conclusão | ✅ |
 | `/admin/membros` | Membros — KPIs, tabela, drawer grant/revoke | ✅ |
-| `/admin/vendas` | Vendas — receita, estornos, breakdown por produto | ✅ |
+| `/admin/vendas` | Vendas — KPIs gerais + funil de ofertas (Order Bump 1/2, Upsell R$67, Downsell R$37) | ✅ |
 | `/admin/tracking` | UTM tracking — KPIs, gráficos source/campaign, CSV | ✅ |
 | `/admin/suporte` | Tickets de suporte — KPIs, tabela, drawer com reply/close | ✅ |
 | `/admin/config` | Setup webhook Kirvano + teste de eventos | ✅ |
@@ -370,16 +371,41 @@ npx wrangler pages deploy dist --project-name=rotina-de-paz --branch=main
 
 ### Auditoria pendente (2026-05-31) — ver `AUDIT-ADMIN-2026-05-31.md` no repo do app
 
-**Corrigido nesta sessão:**
+**Corrigido (sessão 2026-05-31):**
 - Fix profile lookup no suporte (`.eq("id")` → `.eq("user_id")`)
 - Limpeza mock Pixabay do louvores.ts
 - Compressão capas WebP (2.1MB → 111KB)
+- Nova tela `/admin/quiz` — analytics de respostas por pergunta, arquétipos, taxa conclusão
+- `/admin/vendas` — 4 cards do funil (Order Bump 1/2, Upsell R$67, Downsell R$37) abaixo dos KPIs originais
+- Fix `saveEmail()` no Quiz-sacra (update em vez de insert duplicado)
+- Evento `Lead` no pixel Meta (dispara após quiz completo)
+- Fallback value 47 no Purchase pixel
+- Value 47 no InitiateCheckout
+- SPA fallback `_redirects` para Cloudflare Pages
+
+### Funil de Vendas (`/admin/vendas`)
+
+```
+KPIs originais: Receita Aprovada | Vendas Aprovadas | Estornos | Eventos Kirvano
+
+Funil de Ofertas (4 cards):
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ ORDER BUMP 1 │ │ ORDER BUMP 2 │ │    UPSELL    │ │   DOWNSELL   │
+│ A cadastrar  │ │ A cadastrar  │ │ Chave da     │ │ Chave da     │
+│              │ │              │ │ Gratidão     │ │ Gratidão     │
+│ R$ 0,00      │ │ R$ 0,00      │ │ R$ 67        │ │ R$ 37        │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
+```
+
+**Como funciona:** Webhook Kirvano → `processKirvanoPayload()` → cruza `offer_id` com `product_kirvano_offers` → cria `entitlement` → dashboard lê entitlements e agrupa por produto.
+
+**Para ativar Order Bumps:** cadastrar produtos em `/admin/produtos`, vincular `kirvano_offer_id`, e ajustar match em `funnelStats` no `admin.vendas.tsx`.
 
 **Pendente (por prioridade):**
 - Onda 2: Buckets privados + signed URLs, RLS gating em ebooks/courses
 - Onda 3: KPIs server-side (receita, arquétipos), QueryClient staleTime, BulkUploader paralelo
-- Onda 4: Evento Lead no pixel, CAPI para IC, pipeline tracking conectado
-- Onda 5: Quiz UI no app (dados existem, UI não), unificar query keys, tema visual consistente
+- Onda 4: CAPI para InitiateCheckout, pipeline tracking completo
+- Onda 5: Unificar query keys, tema visual consistente
 
 ### Hooks do App
 
