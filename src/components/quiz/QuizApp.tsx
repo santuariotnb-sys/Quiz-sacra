@@ -188,8 +188,16 @@ export function QuizApp() {
       timers.push(window.setTimeout(() => setLoadingMsg(i), step * i));
     }
     timers.push(window.setTimeout(() => setStage("result"), step * messages));
-    // persiste lead no Supabase (best effort)
-    void persistLead(answers).catch(() => {});
+    // persiste lead no Supabase (best effort) + dispara Lead no pixel
+    void persistLead(answers).then(() => {
+      try {
+        const fbq = (window as any).fbq;
+        if (fbq) {
+          const eid = getOrCreateExternalId();
+          fbq("track", "Lead", { content_name: "Rotina de Paz", value: 0, currency: "BRL" }, { eventID: `lead_${eid}` });
+        }
+      } catch {}
+    }).catch(() => {});
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
@@ -243,6 +251,13 @@ export function QuizApp() {
     setEmailSaved(true);
     const sb = getSupabase();
     if (!sb || !email || !archetype) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
+      if (stored.lead_id) {
+        await sb.from("leads").update({ email }).eq("id", stored.lead_id);
+        return;
+      }
+    } catch {}
     const utms = captureUtms();
     await sb.from("leads").insert({
       name: name || null,
