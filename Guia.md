@@ -30,7 +30,7 @@ rotina-de-paz-app.vercel.app  → App pós-compra (Círculo da Paz) + Admin Dash
 | `/sacra` → `/sacra/quiz` | `src/routes/index.tsx` | Redirect para quiz |
 | `/sacra/quiz` | `src/routes/quiz.index.tsx` | Quiz principal (7 perguntas) |
 | `/sacra/quiz-sacra` | `src/routes/quiz-sacra.tsx` | Página auxiliar |
-| `/sacra/obrigado` | `src/routes/obrigado.tsx` | Thank you + Upsell (R$67) — redirect pós-compra Kirvano |
+| `/sacra/obrigado` | `src/routes/obrigado.tsx` | Thank you + Upsell (R$67 Chave da Gratidão) — redirect pós-compra Kirvano |
 | `/sacra/obrigado?offer=downsell` | `src/routes/obrigado.tsx` | Downsell (R$37) — quando recusa upsell |
 
 ### Arquivos-chave
@@ -110,11 +110,13 @@ cd ~/rotina-de-paz && npx wrangler pages deploy dist --project-name=rotina-de-pa
 
 | Camada | O que faz |
 |--------|-----------|
-| **Pixel (browser)** | PageView em toda página. InitiateCheckout no clique do checkout. Purchase na /obrigado (event_id = sale_id do Kirvano). |
-| **CAPI (server)** | Purchase disparado pelo webhook Kirvano no app (processKirvanoPayload). Dedup com pixel via event_id = sale_id. |
+| **Pixel (browser)** | PageView em toda página. InitiateCheckout no clique do checkout (value: 47, eventID: `ic_{externalId}`). Purchase na /obrigado (value: 47 fallback, eventID: transaction_id Kirvano, dedup sessionStorage). |
+| **CAPI (server)** | Purchase disparado pelo webhook Kirvano no app (rotina-de-paz-app). Dedup com pixel via event_id = transaction_id. |
 | **Bridge** | external_id (qs_UUID) viaja como ?src= na URL Kirvano. Client salva fbp/fbc/ua em `tracking_sessions`. Server busca por external_id e junta com email/phone do webhook. |
+| **Gaps conhecidos** | Evento Lead ausente (quiz salva lead no DB mas não dispara fbq). CAPI ausente para PageView e InitiateCheckout. PageView sem eventID. Ver `AUDIT_TRACKING_META.md` para roadmap completo. |
 
 **Pixel ID:** `838169472100225` (hardcoded no index.html)
+**Scorecard tracking (2026-05-31):** 48/100 — Purchase sólido, Lead ausente, CAPI parcial. Ver `ARQUITETURA-TRACKING-VEREDICTO.md`.
 
 **Tabelas Supabase (cemjibbauvvyfaxilrvm):**
 - `tracking_sessions` — bridge browser→server (external_id PK, fbp, fbc, fbclid, user_agent)
@@ -124,22 +126,21 @@ cd ~/rotina-de-paz && npx wrangler pages deploy dist --project-name=rotina-de-pa
 
 ```
 Quiz (7 perguntas)
-  → Resultado (arquétipo)
-    → Bridge (ponte emocional)
-      → Oferta (Rotina de Paz R$67)
-        → [InitiateCheckout pixel + salva tracking_session]
-        → Checkout Kirvano (redirect com ?src=external_id)
-          → Kirvano processa pagamento
-            → Webhook → app → entitlements + CAPI Purchase (server)
-            → Redirect → /sacra/obrigado
-              → Purchase pixel (client, dedup via sale_id)
-              → Animação "liberando acesso" (1.2s)
-              → Upsell: A Chave da Gratidão (R$67)
-                → Aceita: modal Kirvano (iframe, fallback redirect 4s)
-                → Recusa: /sacra/obrigado?offer=downsell
-                  → Downsell: mesma oferta por R$37
-                    → Aceita: modal Kirvano
-                    → Recusa: redirect para app login
+  → Resultado (arquétipo + narração word-by-word)
+    → Oferta (Rotina de Paz R$47)
+      → [InitiateCheckout pixel (value: 47, eventID) + salva tracking_session]
+      → Checkout Kirvano (redirect com ?src=external_id + UTMs)
+        → Kirvano processa pagamento
+          → Webhook → app → entitlements + CAPI Purchase (server)
+          → Redirect → /sacra/obrigado?value=47&transaction_id=X
+            → Purchase pixel (client, value: 47, fallback se URL sem value, dedup via transaction_id)
+            → Animação "liberando acesso" (1.2s)
+            → Upsell: A Chave da Gratidão (R$67)
+              → Aceita: modal Kirvano (iframe, fallback redirect 4s)
+              → Recusa: /sacra/obrigado?offer=downsell
+                → Downsell: mesma oferta por R$37
+                  → Aceita: modal Kirvano
+                  → Recusa: redirect para app login
 ```
 
 ### Secrets necessários
@@ -151,6 +152,36 @@ Quiz (7 perguntas)
 | `KIRVANO_WEBHOOK_SECRET` | Vercel env vars (app) | Token HMAC dos webhooks Kirvano |
 | `VITE_KIRVANO_UPSELL_URL` | Quiz Sacra .env | URL checkout upsell Kirvano |
 | `VITE_KIRVANO_DOWNSELL_URL` | Quiz Sacra .env | URL checkout downsell Kirvano |
+
+### Preços do funil (atualizado 2026-05-31)
+
+| Produto | Preço | Parcelas | Âncora | Onde |
+|---------|-------|----------|--------|------|
+| **Rotina de Paz** (principal) | R$ 47 | 10× R$ 5,60 | De R$ 129 | QuizApp.tsx OfferScreen |
+| **A Chave da Gratidão** (upsell) | R$ 67 | 6× R$ 12,90 | De R$ 197 | funil.ts UPSELL_CONTENT |
+| **A Chave da Gratidão** (downsell) | R$ 37 | 2× R$ 19,50 | De R$ 67 | funil.ts DOWNSELL_CONTENT |
+
+### SPA Fallback
+
+`public/_redirects` → copiado para `dist/` no build. Cloudflare Pages lê da raiz do deploy (`~/rotina-de-paz/dist/_redirects`), que já contém:
+```
+/sacra/*  /sacra/index.html  200
+/*  /index.html  200
+```
+O hack de copiar index.html para subpastas no script de deploy é redundante mas inofensivo.
+
+### Persistência de sessão (quiz)
+
+`sessionStorage` chave `sacra_quiz_state_v1`. Salva stage + answers + name quando em `result` ou `offer`. Restaura no mount — refresh não reinicia o quiz. JSON corrompido ignorado (try/catch).
+
+### Atualização 2026-05-31 — Auditoria + correções de preço e tracking
+
+1. **Preço corrigido R$67 → R$47** no produto principal (JSX, parcelas, âncora). Upsell/downsell intocados.
+2. **InitiateCheckout** agora envia `value: 47` pro Meta (antes enviava sem value).
+3. **Purchase fallback** de value: se Kirvano não enviar `?value=` na URL, dispara com `47` em vez de sem valor.
+4. **SPA fallback `_redirects`** criado para Cloudflare Pages (previne 404 no F5).
+5. **CSS do redesign** commitado (`.rdp-btn-gold`, `.rdp-night`, partículas, legenda).
+6. **Auditoria completa do tracking** — ver `AUDIT_TRACKING_META.md` e `ARQUITETURA-TRACKING-VEREDICTO.md`.
 
 ### Atualização 2026-05-30 — Redesign do funil (resultado → oferta)
 
@@ -336,6 +367,19 @@ npx wrangler pages deploy dist --project-name=rotina-de-paz --branch=main
 | `support_messages` | Mensagens de thread (ticket_id, sender_type: user/admin, body) |
 
 **Storage Buckets:** `method-audios`, `louvores-audios`, `ebooks-files`, `course-videos` (todos públicos para leitura)
+
+### Auditoria pendente (2026-05-31) — ver `AUDIT-ADMIN-2026-05-31.md` no repo do app
+
+**Corrigido nesta sessão:**
+- Fix profile lookup no suporte (`.eq("id")` → `.eq("user_id")`)
+- Limpeza mock Pixabay do louvores.ts
+- Compressão capas WebP (2.1MB → 111KB)
+
+**Pendente (por prioridade):**
+- Onda 2: Buckets privados + signed URLs, RLS gating em ebooks/courses
+- Onda 3: KPIs server-side (receita, arquétipos), QueryClient staleTime, BulkUploader paralelo
+- Onda 4: Evento Lead no pixel, CAPI para IC, pipeline tracking conectado
+- Onda 5: Quiz UI no app (dados existem, UI não), unificar query keys, tema visual consistente
 
 ### Hooks do App
 
