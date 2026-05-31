@@ -19,6 +19,7 @@ import { buildKirvanoUrl } from "@/lib/utm";
 import { getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
 import { CheckoutModal } from "./CheckoutModal";
 import type { OfferContent, OfferBullet } from "@/data/funil";
+import chaveGratidaoMockup from "@/assets/chave-gratidao-mockup.webp";
 
 type Props = {
   content: OfferContent;
@@ -39,7 +40,7 @@ const BULLET_ICON: Record<NonNullable<OfferBullet["icon"]>, typeof Calendar> = {
 
 /**
  * Dispara pixel Purchase UMA vez, com deduplicação via eventID.
- * - value vem do query param do redirect Kirvano (ex: ?value=67.00)
+ * - value vem do query param do redirect Kirvano (ex: ?value=47.00)
  * - eventID vem do transaction_id do Kirvano ou gera UUID
  * - Se value não existir na URL, dispara SEM value (não chumba valor falso)
  * - Guard: só dispara se flag firePurchasePixel=true (previne disparo no downsell)
@@ -312,17 +313,17 @@ function TopBanner({
           className="py-3 px-4 text-center overflow-hidden"
           style={{
             background:
-              "linear-gradient(135deg, var(--gold-warm) 0%, var(--gold) 100%)",
-            boxShadow: "0 4px 24px rgba(201,168,118,0.4)",
+              "linear-gradient(135deg, #FFD60A 0%, #FFB800 100%)",
+            boxShadow: "0 4px 24px rgba(255,184,0,0.5)",
           }}
         >
           <div className="max-w-2xl mx-auto flex items-center justify-center gap-2 text-[color:var(--deep-purple)]">
             <motion.span
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity }}
+              animate={{ scale: [1, 1.4, 1] }}
+              transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut" }}
               className="inline-flex"
             >
-              <AlertTriangle className="w-4 h-4" />
+              <AlertTriangle className="w-[18px] h-[18px]" />
             </motion.span>
             <p className="text-xs sm:text-sm font-bold tracking-wide uppercase">
               {label}{" "}
@@ -549,6 +550,15 @@ function OfferCard({
           );
         })}
       </ul>
+
+      <motion.img
+        src={chaveGratidaoMockup}
+        alt={content.offer.title}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
+        className="w-full max-w-md mx-auto rounded-2xl mb-6"
+      />
 
       <div className="text-center mb-5">
         {content.offer.priceFrom && (
