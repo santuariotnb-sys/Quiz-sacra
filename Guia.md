@@ -440,6 +440,26 @@ Funil de Ofertas (4 cards):
    → Player de áudio com MediaSession (controles tela bloqueada)
 ```
 
+### Analytics via Claude Code (RPCs Supabase)
+
+O Claude pode acessar analytics em qualquer sessão via `supabase.rpc()` com a service role key:
+
+| RPC | Parâmetros | Retorna |
+|-----|-----------|---------|
+| `analytics_top_segments` | `p_days` (30), `p_min_leads` (20) | Top segmentos por conversão (archetype × situation × desire), com n, conv_rate, revenue |
+| `analytics_funnel` | `p_days` (30) | Funil: total_leads → with_archetype → with_email → purchasers → upsell_buyers → downsell_buyers + total_revenue |
+| `analytics_revenue_breakdown` | `p_days` (30) | Receita por produto e tipo (principal/bump/upsell/downsell), vendas, reembolsos |
+| `analytics_quiz_conversion` | `p_days` (30) | Respostas do quiz × taxa de conversão (por question_key) |
+| `analytics_cohort_weekly` | `p_weeks` (12) | Cohort semanal: leads, buyers, revenue, conv_pct |
+
+**Exemplo de uso:**
+```javascript
+const { data } = await supabase.rpc("analytics_top_segments", { p_days: 30, p_min_leads: 20 });
+// → [{archetype: "vigilante", situation: "mae-solo", desire: "dormir", total_leads: 45, conv_rate: 8.9, revenue: 188.00}, ...]
+```
+
+**Dashboard visual:** `/admin/analytics` — funil, top segmentos, quiz×conversão, receita por produto, cohort semanal.
+
 ### Deploy
 
 ```bash
