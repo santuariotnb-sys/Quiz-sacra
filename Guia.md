@@ -460,6 +460,33 @@ const { data } = await supabase.rpc("analytics_top_segments", { p_days: 30, p_mi
 
 **Dashboard visual:** `/admin/analytics` — funil, top segmentos, quiz×conversão, receita por produto, cohort semanal.
 
+### Emails (Resend — validado 2026-06-01)
+
+**Provider:** Resend · **Domínio:** `rotinadepaz.com.br` (verificado, São Paulo sa-east-1, Cloudflare)
+**API Key:** `RESEND_API_KEY` configurada no Vercel env vars (production)
+**From:** `Rotina de Paz <noreply@rotinadepaz.com.br>` (padronizado, sem hífen)
+
+| # | Email | Trigger | Destinatário | Arquivo |
+|---|-------|---------|-------------|---------|
+| 1 | **Welcome (compra)** | Webhook Kirvano → `sendWelcomeEmail()` | Aluna (buyer_email) | `src/lib/admin/email.server.ts` |
+| 2 | **Novo ticket** | Aluna abre ticket | `rotinadepaz.suporte@gmail.com` | `src/lib/api/send-email.functions.ts` |
+| 3 | **Aluna responde** | Aluna responde ticket | `rotinadepaz.suporte@gmail.com` | `src/lib/api/send-email.functions.ts` |
+| 4 | **Admin responde** | Admin responde ticket | Aluna (email) | `src/lib/api/send-email.functions.ts` |
+| 5 | **Ticket fechado** | Admin fecha ticket | Aluna (email) | `src/lib/api/send-email.functions.ts` |
+| 6 | **Confirm signup** | Auth signup | Aluna | Supabase Auth (template padrão) |
+| 7 | **Reset senha** | Esqueci senha | Aluna | Supabase Auth (template padrão) |
+
+**Welcome email:** Template premium (cream/gold, Georgia serif, versículo Romanos 12:2). Botão "Criar minha conta e acessar" com magic link do Supabase. Fallback para `/login` se magic link falhar. Subject: "{nome}, bem-vinda ao Círculo da Paz ✨".
+
+**Suporte:** Todos os handlers são **não-bloqueantes** (falha silenciosa). Se o email falhar, o ticket continua salvo no banco. A aluna nunca vê erro na UI.
+
+**Fluxo pós-compra:**
+```
+Kirvano webhook → cria user (sem senha) → gera magic link → envia welcome email
+  → Aluna clica "Criar minha conta e acessar" → redireciona para /app
+  → Se não receber email: "Esqueci minha senha" no /login funciona
+```
+
 ### Deploy
 
 ```bash
