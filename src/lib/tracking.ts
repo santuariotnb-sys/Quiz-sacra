@@ -46,17 +46,13 @@ export async function saveTrackingSession(externalId: string): Promise<void> {
   const fbclid = new URLSearchParams(window.location.search).get("fbclid");
   const userAgent = navigator.userAgent;
 
-  await sb.from("tracking_sessions").upsert(
-    {
-      external_id: externalId,
-      fbp: fbp ?? null,
-      fbc: fbc ?? null,
-      fbclid: fbclid ?? null,
-      client_ip: null, // IP confiável não disponível client-side; servidor preencherá se possível
-      user_agent: userAgent,
-    },
-    { onConflict: "external_id" },
-  );
+  await sb.rpc("upsert_tracking_session", {
+    p_external_id: externalId,
+    p_fbp: fbp ?? null,
+    p_fbc: fbc ?? null,
+    p_fbclid: fbclid ?? null,
+    p_user_agent: userAgent,
+  });
 }
 
 /**

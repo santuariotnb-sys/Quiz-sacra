@@ -207,21 +207,18 @@ export function QuizApp() {
     if (!sb) return;
     const { scores, archetype } = computeArchetype(ans);
     const utms = captureUtms();
-    const { data: lead, error } = await sb
-      .from("leads")
-      .insert({
-        name: name || null,
-        email: null,
-        archetype,
-        scores,
-        desire: ans["desejo"] ?? null,
-        situation: ans["situacao"] ?? null,
-        risk_flag: answersHaveRisk(ans),
-        ...utms,
-      })
-      .select("id")
-      .single();
-    if (error || !lead) return;
+    const { data: leadId, error } = await sb.rpc("persist_lead", {
+      p_name: name || null,
+      p_archetype: archetype,
+      p_scores: scores,
+      p_desire: ans["desejo"] ?? null,
+      p_situation: ans["situacao"] ?? null,
+      p_risk_flag: answersHaveRisk(ans),
+      ...Object.fromEntries(
+        Object.entries(utms).map(([k, v]) => ["p_" + k, v]),
+      ),
+    });
+    if (error || !leadId) return;
     // Persiste arquétipo localmente para o App da Aluna (Parte 2)
     try {
       localStorage.setItem(
@@ -231,20 +228,20 @@ export function QuizApp() {
           name: name || null,
           desire: ans["desejo"] ?? null,
           situation: ans["situacao"] ?? null,
-          lead_id: lead.id,
+          lead_id: leadId,
           created_at: new Date().toISOString(),
         }),
       );
     } catch {}
     const totalTime = Date.now() - startTsRef.current;
     const rows = QUESTIONS.map((q) => ({
-      lead_id: lead.id,
+      lead_id: leadId,
       question_key: q.key,
       answer_value: ans[q.key] ?? "",
       answer_text: q.options.find((o) => o.value === ans[q.key])?.label ?? "",
       time_to_answer: Math.round(totalTime / QUESTIONS.length),
     }));
-    await sb.from("quiz_responses").insert(rows);
+    await sb.rpc("persist_quiz_responses", { p_rows: rows });
   }
 
   async function saveEmail() {
@@ -254,18 +251,21 @@ export function QuizApp() {
     try {
       const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
       if (stored.lead_id) {
-        await sb.from("leads").update({ email }).eq("id", stored.lead_id);
+        await sb.rpc("save_lead_email", { p_lead_id: stored.lead_id, p_email: email });
         return;
       }
     } catch {}
+    // Fallback: lead_id não disponível — cria novo lead com email
     const utms = captureUtms();
-    await sb.from("leads").insert({
-      name: name || null,
-      email,
-      archetype,
-      desire: desire ?? null,
-      situation: situation ?? null,
-      ...utms,
+    await sb.rpc("persist_lead", {
+      p_name: name || null,
+      p_archetype: archetype,
+      p_desire: desire ?? null,
+      p_situation: situation ?? null,
+      p_risk_flag: false,
+      ...Object.fromEntries(
+        Object.entries(utms).map(([k, v]) => ["p_" + k, v]),
+      ),
     });
   }
 
