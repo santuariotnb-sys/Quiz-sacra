@@ -25,7 +25,6 @@ function ObrigadoPage() {
           : "/sacra/obrigado?offer=downsell"
       }
       showProcessing={!isDownsell}
-      firePurchasePixel={!isDownsell}
     />
   );
 }

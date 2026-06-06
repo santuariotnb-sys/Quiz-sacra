@@ -46,13 +46,16 @@ export async function saveTrackingSession(externalId: string): Promise<void> {
   const fbclid = new URLSearchParams(window.location.search).get("fbclid");
   const userAgent = navigator.userAgent;
 
-  await sb.rpc("upsert_tracking_session", {
+  const { error } = await sb.rpc("upsert_tracking_session", {
     p_external_id: externalId,
     p_fbp: fbp ?? null,
     p_fbc: fbc ?? null,
     p_fbclid: fbclid ?? null,
     p_user_agent: userAgent,
   });
+  // Logar (não engolir): essa sessão alimenta o fbp/fbc do CAPI server. Falha silenciosa
+  // aqui degrada o match quality de TODAS as compras sem ninguém perceber.
+  if (error) console.error("[tracking] upsert_tracking_session falhou:", error.message);
 }
 
 /**
@@ -73,7 +76,15 @@ export function trackInitiateCheckout(
         return;
       }
 
-      const eventId = `ic_${externalId}`;
+      // eventID por ETAPA: separa o IC do principal, upsell e downsell (que têm valores
+      // diferentes) em vez de colapsar tudo num único `ic_<externalId>` deduplicado.
+      // Cliques repetidos na MESMA etapa ainda deduplicam (mesmo eventID).
+      const scope = (extras?.contentName ?? "checkout")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .slice(0, 24);
+      const eventId = `ic_${externalId}_${scope}`;
       const data: Record<string, any> = {
         content_name: extras?.contentName ?? "Rotina de Paz",
         content_ids: ["rotina_de_paz"],

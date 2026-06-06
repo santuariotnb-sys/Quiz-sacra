@@ -218,7 +218,10 @@ export function QuizApp() {
         Object.entries(utms).map(([k, v]) => ["p_" + k, v]),
       ),
     });
-    if (error || !leadId) return;
+    if (error || !leadId) {
+      if (error) console.error("[persist_lead] falhou:", error.message, error.code);
+      return;
+    }
     // Persiste arquétipo localmente para o App da Aluna (Parte 2)
     try {
       localStorage.setItem(
@@ -251,10 +254,13 @@ export function QuizApp() {
     try {
       const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
       if (stored.lead_id) {
-        await sb.rpc("save_lead_email", { p_lead_id: stored.lead_id, p_email: email });
+        const { error } = await sb.rpc("save_lead_email", { p_lead_id: stored.lead_id, p_email: email });
+        if (error) console.error("[save_lead_email] falhou:", error.message, error.code);
         return;
       }
-    } catch {}
+    } catch (e) {
+      console.error("[saveEmail] erro inesperado:", e);
+    }
     // Fallback: lead_id não disponível — cria novo lead com email
     const utms = captureUtms();
     await sb.rpc("persist_lead", {

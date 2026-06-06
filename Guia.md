@@ -11,6 +11,57 @@ rotina-de-paz-app.vercel.app  → App pós-compra (Círculo da Paz) + Admin Dash
 
 ---
 
+## ⚡ ESTADO ATUAL — Atualização 2026-06-05 (sessão grande: segurança + jurídico + UX)
+
+> **LEIA PRIMEIRO.** Mudanças estruturais importantes. Onde o texto antigo abaixo conflitar com esta seção, **esta prevalece**. Repos: App = `~/rotina-de-paz-app` (Supabase `cemjibbauvvyfaxilrvm`, deploy Vercel via push `main`); Quiz = `~/Quiz-sacra` (deploy Cloudflare via `~/rotina-de-paz`).
+
+### 🔴 1. Quiz agora grava via RPCs `SECURITY DEFINER` (NÃO acessa tabelas direto)
+Um hardening de RLS quebrou a captação (o quiz parou de salvar leads/respostas/tracking) **e** abriu vazamento de PII (a `anon key`, que é pública, lia toda a base de `leads`). Corrigido migrando o quiz para RPCs. **A anon key NÃO toca mais `leads`/`quiz_responses`/`tracking_sessions` direto.**
+- **Quiz-sacra** (`src/components/quiz/QuizApp.tsx`, `src/lib/tracking.ts`) chama:
+  - `persist_lead(p_name, p_archetype, p_scores, p_desire, p_situation, p_risk_flag, p_utm_*)` → retorna `lead_id`
+  - `persist_quiz_responses(p_rows jsonb)`
+  - `save_lead_email(p_lead_id, p_email)` (valida formato; só seta se email atual for null)
+  - `upsert_tracking_session(p_external_id, p_fbp, p_fbc, p_fbclid, p_user_agent)`
+- **Raciocínio:** `INSERT ... RETURNING` (o `.select()` do supabase-js) e `UPSERT` exigiam SELECT policy pra anon — e dar SELECT à anon vazava PII. RPC `SECURITY DEFINER` grava sem expor as tabelas. **Não voltar a usar `.from('leads').insert()` no client.**
+
+### 🔐 2. Segurança do App — NO AR (PR #1, mergeado e deployado)
+- **Webhook Kirvano** (`src/routes/api/public/webhooks/kirvano.ts`): rate limit **HMAC-first** (HMAC válido processa sem rate limit; inválido conta falhas por IP via `ipAddress` de `@vercel/functions`, ≥10/60s → 429). `500`+retry idempotente. `webhook_logs` usa coluna booleana **`signature_valid`** (NÃO existe `status`).
+- **Pagamento** (`src/lib/admin/kirvano.server.ts`): refund escopado por produto; entitlement `refunded` NÃO reativa por upsert; lookup de user por `get_user_id_by_email` (sem `listUsers(200)`); welcome email loga **ERROR** se falhar (fallback: "esqueci a senha").
+- **Conteúdo pago**: ebook `file_url` atrás de server function `getEbookUrl` (`src/lib/api/content.functions.ts`) com checagem de entitlement.
+- **Server functions**: todas com `requireSupabaseAuth`; as admin com `assertAdmin` (checa `admin_users`).
+- **Borda**: security headers em `vercel.json` (CSP em Report-Only). **pg_cron**: 2 jobs de retenção (`webhook_logs` 90d, `tracking_sessions` 30d), `active=true`.
+
+### ⚖️ 3. Aceite Legal (LGPD) — NO AR
+- Tabela **`legal_acceptances`** (RLS: anon não lê/escreve; SELECT só do próprio + admin; INSERT só via service_role).
+- **Gate** no `/app` (`src/routes/app.tsx`): no 1º acesso chama `getLegalStatus` (server fn); se falta aceite → redireciona pra `/aceite`. **fail-open** (erro = deixa passar, pra não trancar quem pagou).
+- `/aceite` (`src/routes/aceite.tsx`): card único, texto corrido dos 3 termos, scroll obrigatório + checkbox. `recordLegalAcceptance` grava versões + **IP server-side** (`@vercel/functions`) + user_agent.
+- Versões em `src/lib/legal/versions.ts` (`LEGAL_VERSIONS`) → mudar texto = subir versão = re-exige aceite. Conteúdo em `src/lib/legal/content/*.ts`. Páginas públicas: `/termos-de-uso`, `/politica-de-privacidade`, `/termo-de-ciencia`.
+- **Minutas jurídicas** (pra advogado revisar) em `~/Downloads/TNB_TERMO-CIENCIA-E-RESPONSABILIDADE.md` e `TNB_TERMOS-DE-USO-E-PRIVACIDADE.md`.
+
+### 🗄️ 4. Schema — correções importantes
+- **`quiz_responses` usa COLUNAS** (`question_key`, `answer_value`, `answer_text`, `lead_id`, `time_to_answer`) — **NÃO existe `answers` JSONB** no banco. ⚠️ O `types.ts` declara `answers` (legado) — está ERRADO. **Regenerar os types do banco** (`supabase gen types`) e NÃO confiar no `answers`.
+- Novas: `legal_acceptances`. Analytics usa `purchases` (buyer_email, product_name, product_type, status, gross_value).
+- RPCs novas: `persist_lead`, `persist_quiz_responses`, `save_lead_email`, `upsert_tracking_session`, `get_user_id_by_email`, `analytics_*`.
+
+### 📊 5. Tracking — decisão sobre UTMify
+O app **já tem** Pixel Meta + **CAPI** (Purchase no webhook) **deduplicados por `transaction_id`** + bridge `tracking_sessions` (fbp/fbc) + `processed_events`. **Está bom.** UTMify só como **dashboard financeiro/prova social** via integração nativa Kirvano→UTMify. **NÃO** deixar a UTMify enviar conversão pro Meta (causaria double-count, pois ela usa outro event_id). Gaps reais de tracking: CAPI ausente em InitiateCheckout e evento Lead.
+
+### 📐 6. REGRAS DE OURO (lições desta sessão — seguir sempre)
+1. **Validar RLS com a ANON KEY REAL** via PostgREST, **nunca** só `set role anon` (dá falso-positivo). E testar o caminho POSITIVO com **dado real** (0 rows com tabela vazia não prova nada).
+2. **Toda mudança de schema/RLS em MIGRATION versionada** — nunca aplicar direto no banco linkado.
+3. **IP sempre capturado no servidor** (`ipAddress` de `@vercel/functions`), nunca do client.
+4. **Dois clones do app divergem** (`~/rotina-de-paz-app` e `~/projects/rotina-de-paz-app`) — **sempre `git pull` na main antes de trabalhar**; não mergear branch de base desatualizada.
+5. **Proteções de acesso não podem quebrar quem já pagou** (foi o bug do ebook). Testar o caminho legítimo.
+6. **`window.open` após `await` é bloqueado** (popup blocker mobile) — abrir a janela no gesto do clique.
+
+### 🧭 7. PENDÊNCIAS / DIREÇÃO (próximas sessões)
+- **Branch `fix/ebook-nav-safari`** (no clone que estiver atualizado): 3 fixes prontos aguardando **teste no preview Vercel (Safari iOS)** + merge — (a) ebook abre via `window.open("about:blank")` no gesto, (b) `defaultPreload:"intent"` no router, (c) `overflow-x: clip` p/ matar rubber-band lateral do Safari.
+- **A3** (melhoria futura): recompra de produto reembolsado não reativa acesso — distinguir replay (mesmo `txId`) de recompra (`txId` novo).
+- **Jurídico**: levar as minutas ao advogado → subir `LEGAL_VERSIONS` p/ os clientes aceitarem a versão validada.
+- **Sprint Personas** (não implementado): plano em `~/projects/rotina-de-paz-app/docs/superpowers/plans/2026-06-05-personas-analytics.md`. Estrutura: RPC `analytics_personas_dossier` (agregar por COLUNAS, não `answers`) + seção em `/admin/analytics` + export .md/.csv. Desenho completo em `~/Downloads/ROTINA-DE-PAZ_PERSONAS-ANALYTICS.md`.
+
+---
+
 ## 1. Quiz Sacra
 
 | Item | Valor |
@@ -363,9 +414,13 @@ npx wrangler pages deploy dist --project-name=rotina-de-paz --branch=main
 | `course_lessons` | Aulas dentro de cursos (por módulo) |
 | `leads` | Leads do Quiz Sacra (name, email, archetype, scores, UTMs) |
 | `quiz_responses` | Respostas do quiz por pergunta (lead_id, question_key, answer_value) |
-| `webhook_logs` | Logs de webhooks Kirvano (payload, signature, processed) |
+| `webhook_logs` | Logs de webhooks Kirvano (payload, **`signature_valid`** bool, processed, request_ip) — retenção 90d via pg_cron |
 | `support_tickets` | Tickets de suporte (user_id, category, subject, status: open/answered/closed) |
 | `support_messages` | Mensagens de thread (ticket_id, sender_type: user/admin, body) |
+| `legal_acceptances` | Aceite legal (user_id, email, versões dos termos, ip, user_agent) — RLS: anon bloqueado; SELECT só do próprio + admin |
+| `purchases` | Analytics de vendas (buyer_email, product_name, product_type, status, gross_value) |
+| `tracking_sessions` | Bridge CAPI (external_id PK, fbp, fbc, fbclid, user_agent) — retenção 30d |
+| `processed_events` | Idempotência CAPI (sale_id PK) |
 
 **Storage Buckets:** `method-audios`, `louvores-audios`, `ebooks-files`, `course-videos` (todos públicos para leitura)
 
@@ -402,9 +457,9 @@ Funil de Ofertas (4 cards):
 **Para ativar Order Bumps:** cadastrar produtos em `/admin/produtos`, vincular `kirvano_offer_id`, e ajustar match em `funnelStats` no `admin.vendas.tsx`.
 
 **Pendente (por prioridade):**
-- Onda 2: Buckets privados + signed URLs, RLS gating em ebooks/courses
-- Onda 3: KPIs server-side (receita, arquétipos), QueryClient staleTime, BulkUploader paralelo
-- Onda 4: CAPI para InitiateCheckout, pipeline tracking completo
+- Onda 2: ebooks JÁ protegidos por `getEbookUrl` (server fn + entitlement, 2026-06-05). Falta: course_lessons/louvores com o mesmo padrão + tornar buckets privados (`ebooks-files` etc ainda públicos).
+- Onda 3: KPIs server-side (receita, arquétipos), QueryClient staleTime ✅ (cache global feito), BulkUploader paralelo
+- Onda 4: CAPI para InitiateCheckout, pipeline tracking completo (gap real — ver §5)
 - Onda 5: Unificar query keys, tema visual consistente
 
 ### Hooks do App
@@ -420,18 +475,21 @@ Funil de Ofertas (4 cards):
 
 ```
 1. Quiz Sacra (rotinadepaz.com.br/sacra)
-   → Insere lead: name, email, archetype, scores, desire, situation, UTMs
-   → Insere quiz_responses por pergunta
+   → RPC persist_lead(...) → retorna lead_id   (NÃO insere direto — RLS bloqueia anon; ver Estado Atual §1)
+   → RPC persist_quiz_responses(p_rows)
+   → RPC save_lead_email(lead_id, email) ao captar o e-mail
+   → RPC upsert_tracking_session(...) no clique do checkout (bridge fbp/fbc)
    → Salva sacra_student no localStorage
 
 2. Compra via Kirvano
-   → Webhook POST /api/public/webhooks/kirvano
-   → Cria entitlement (product_id, buyer_email, status: active)
+   → Webhook POST /api/public/webhooks/kirvano (HMAC-first rate limit; ver §2)
+   → processKirvanoPayload → ensureUserForEmail (cria user se não existe) → entitlement (status: active)
+   → welcome email (magic link); CAPI Purchase (dedup por transaction_id)
 
 3. Login no App
-   → supabase.auth.signInWithPassword()
+   → supabase.auth.signInWithPassword() (ou magic link)
    → onAuthStateChange → syncStudentWithProfile() (fire-and-forget)
-   → Cria/atualiza profile com dados do localStorage (archetype, desire, situation, lead_id)
+   → Gate legal: getLegalStatus → se falta aceite, vai p/ /aceite antes do /app (ver §3)
    → Navigate → /app
 
 4. App carrega
