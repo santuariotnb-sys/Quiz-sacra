@@ -177,6 +177,24 @@ export function QuizApp() {
     }
   };
 
+  // Análise de abandono: marca cada pergunta EXIBIDA. No Meta, o funil de eventos
+  // QuizStep mostra exatamente em qual pergunta o usuário desiste (a contagem cai).
+  // Fire-and-forget via fbq trackCustom — sem sendBeacon, nunca quebra o fluxo.
+  useEffect(() => {
+    if (stage !== "questions") return;
+    const q = QUESTIONS[qIndex];
+    if (!q) return;
+    try {
+      (window as { fbq?: (...a: unknown[]) => void }).fbq?.("trackCustom", "QuizStep", {
+        step: qIndex + 1,
+        total: QUESTIONS.length,
+        question: q.key,
+      });
+    } catch {
+      /* analytics nunca bloqueia o quiz */
+    }
+  }, [stage, qIndex]);
+
   // Loading -> Result com mensagens em sequência
   const [loadingMsg, setLoadingMsg] = useState(0);
   useEffect(() => {
