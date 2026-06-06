@@ -19,8 +19,8 @@ import { getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } fro
 import type { OfferContent, OfferBullet } from "@/data/funil";
 import chaveGratidaoMockup from "@/assets/chave-gratidao-mockup.webp";
 
-// Destino pós-aceite (one-click) — leva o comprador ao app para acessar o conteúdo.
-const APP_LOGIN_URL = "https://rotina-de-paz-app.vercel.app/login";
+// Destino pós-aceite (one-click). O Purchase é rastreado server-side (CAPI no webhook).
+const APP_URL = "https://rotina-de-paz-app.vercel.app/app";
 
 type Props = {
   content: OfferContent;
@@ -36,11 +36,6 @@ const BULLET_ICON: Record<NonNullable<OfferBullet["icon"]>, typeof Calendar> = {
   heart: Heart,
   book: BookOpen,
 };
-
-// Purchase NÃO é disparado no client. A fonte de verdade é o CAPI server-side
-// (webhook Kirvano → Meta Conversions API): tem sale_id (event_id único por venda),
-// valor real e fbp/fbc/ip do tracking_session. O pixel client só pegava o principal
-// e duplicava em reload. Ver rotina-de-paz-app/src/lib/admin/meta-capi.server.ts.
 
 export function OfferPage({
   content,
@@ -60,53 +55,54 @@ export function OfferPage({
     };
   }, [showProcessing]);
 
-
-  // Configura variáveis globais + carrega o script Kirvano SÓ quando os botões já estão no DOM.
-  // O upsell.min.js anexa os listeners de comprar/recusar via querySelector UMA vez no load.
-  // Como o <AnimatePresence mode="wait"> só monta o conteúdo (e os botões) depois da animação
-  // de saída do "processing", carregar o script cedo faz os cliques não funcionarem — sobretudo
-  // o de recusar, que é o último a montar (delay 0.6). Por isso esperamos os dois gatilhos.
+  // ── Integração one-click da Kirvano (upsell.min.js) ──
+  // Cada oferta tem seu snippet: window.offer / nextPageURL / refusePageURL. O botão de compra
+  // (classe kirvano-payment-trigger) abre o modal de pagamento; o de recusar (kirvano-refuse-trigger)
+  // navega pro refusePageURL. Carregamos o script SÓ quando os 2 botões existem (MutationObserver).
   useEffect(() => {
     if (isProcessing) return;
     const w = window as any;
-    const offerUuid = content.checkoutUrl.split("/").pop() || "";
-    w.offer = offerUuid;
-    w.nextPageURL = APP_LOGIN_URL; // ao aceitar via JS → app (não fica refém da config da Kirvano)
+
+    // FIX: o kirvano_upsell (base64 na URL) pode conter '+', que o URLSearchParams converte em
+    // espaço → o atob() do upsell.min.js quebra e crasha o script (botões mortos). Revertemos.
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const ku = sp.get("kirvano_upsell");
+      if (ku && ku.includes(" ")) {
+        sp.set("kirvano_upsell", ku.replace(/ /g, "+"));
+        window.history.replaceState(null, "", `${window.location.pathname}?${sp.toString()}${window.location.hash}`);
+      }
+    } catch { /* nunca bloqueia o fluxo */ }
+
+    w.offer = content.checkoutUrl.split("/").pop() || "";
+    w.nextPageURL = APP_URL;
     w.refusePageURL = declineTo.startsWith("/")
       ? `${window.location.origin}${declineTo}`
       : declineTo;
 
-    let script: HTMLScriptElement | null = null;
-    let timer = 0;
-    let tries = 0;
-    const mountWhenReady = () => {
-      const ready =
-        document.querySelector(".kirvano-payment-trigger") &&
-        document.querySelector(".kirvano-refuse-trigger");
-      if (!ready && tries < 60) {
-        tries++;
-        timer = window.setTimeout(mountWhenReady, 50);
-        return;
-      }
-      // Remove script anterior se existir (troca upsell→downsell na mesma SPA)
-      const existing = document.getElementById("kirvano-upsell-script");
-      if (existing) existing.remove();
-
-      script = document.createElement("script");
-      script.id = "kirvano-upsell-script";
-      script.src = "https://snippets.kirvano.com/upsell.min.js";
-      document.body.appendChild(script);
+    const ready = () =>
+      document.querySelector(".kirvano-payment-trigger") &&
+      document.querySelector(".kirvano-refuse-trigger");
+    const load = () => {
+      if (document.getElementById("kirvano-upsell-script")) return;
+      const s = document.createElement("script");
+      s.id = "kirvano-upsell-script";
+      s.src = "https://snippets.kirvano.com/upsell.min.js";
+      document.body.appendChild(s);
     };
-    mountWhenReady();
-
-    return () => {
-      if (timer) clearTimeout(timer);
-      script?.remove();
-    };
+    let obs: MutationObserver | null = null;
+    if (ready()) load();
+    else {
+      obs = new MutationObserver(() => {
+        if (ready()) { obs?.disconnect(); obs = null; load(); }
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+    }
+    return () => { obs?.disconnect(); };
   }, [isProcessing, content.checkoutUrl, declineTo]);
 
-  // Dispara InitiateCheckout ao clicar no botão de compra (antes do Kirvano abrir o modal)
-  const handleAcceptTracking = async () => {
+  // Tracking InitiateCheckout no clique de compra (o modal é aberto pelo upsell.min.js via classe)
+  const handleAccept = async () => {
     const externalId = getOrCreateExternalId();
     void saveTrackingSession(externalId).catch(() => {});
     await trackInitiateCheckout(externalId, {
@@ -256,22 +252,19 @@ export function OfferPage({
                   {content.bridge}
                 </p>
 
-                <OfferCard content={content} onAcceptTracking={handleAcceptTracking} />
+                <OfferCard content={content} onAccept={handleAccept} />
 
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
+                <button
+                  type="button"
                   className="kirvano-refuse-trigger w-full mt-5 px-6 py-4 rounded-2xl border-2 border-red-400/40 bg-red-50/50 text-red-600 text-sm sm:text-base font-medium hover:bg-red-100/50 hover:border-red-400/60 transition"
                 >
                   ✕ {content.declineLabel}
-                </motion.button>
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </main>
-
     </div>
   );
 }
@@ -464,10 +457,10 @@ function ConsequenceLine({
 
 function OfferCard({
   content,
-  onAcceptTracking,
+  onAccept,
 }: {
   content: OfferContent;
-  onAcceptTracking: () => void;
+  onAccept: () => void;
 }) {
   return (
     <motion.div
@@ -570,10 +563,9 @@ function OfferCard({
           animate={{ opacity: [0.25, 0.5, 0.25] }}
           transition={{ duration: 2.5, repeat: Infinity }}
         />
-        <motion.button
-          onClick={onAcceptTracking}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+        <button
+          type="button"
+          onClick={onAccept}
           className="kirvano-payment-trigger rdp-btn-gradient-hover relative w-full py-4 sm:py-5 rounded-2xl font-semibold text-base sm:text-lg text-white overflow-hidden flex items-center justify-center gap-2"
         >
           <motion.div
@@ -591,7 +583,7 @@ function OfferCard({
           >
             <ArrowRight className="w-5 h-5" />
           </motion.span>
-        </motion.button>
+        </button>
       </div>
 
       {content.offer.guarantee && (

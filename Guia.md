@@ -98,8 +98,8 @@ src/
 ├── data/narration.ts → Cues da legenda da oferta (tempo por palavra, gerado por forced-alignment)
 ├── data/funil.ts     → Conteúdo das ofertas upsell (R$67) e downsell (R$37)
 ├── components/funil/
-│   ├── OfferPage.tsx    → Página genérica de oferta (upsell/downsell)
-│   └── CheckoutModal.tsx → Modal com iframe Kirvano (fallback: redirect em 4s)
+│   ├── OfferPage.tsx    → Página de oferta (upsell/downsell) — ONE-CLICK Kirvano (upsell.min.js)
+│   └── CheckoutModal.tsx → ⚠️ NÃO USADO (iframe do checkout é bloqueado por CSP frame-ancestors)
 ├── lib/
 │   ├── supabase.ts   → Cliente Supabase (opcional, null se sem env)
 │   ├── utm.ts        → Captura UTMs + buildKirvanoUrl (com ?src=external_id)
@@ -161,8 +161,8 @@ cd ~/rotina-de-paz && npx wrangler pages deploy dist --project-name=rotina-de-pa
 
 | Camada | O que faz |
 |--------|-----------|
-| **Pixel (browser)** | PageView em toda página. InitiateCheckout no clique do checkout (value: 47, eventID: `ic_{externalId}`). Purchase na /obrigado (value: 47 fallback, eventID: transaction_id Kirvano, dedup sessionStorage). |
-| **CAPI (server)** | Purchase disparado pelo webhook Kirvano no app (rotina-de-paz-app). Dedup com pixel via event_id = transaction_id. |
+| **Pixel (browser)** | PageView em toda página. InitiateCheckout no clique de comprar (eventID por etapa: `ic_{externalId}_{etapa}`). **Purchase NÃO dispara no client** (é CAPI-only — evita dupla contagem). |
+| **CAPI (server)** | **Purchase é disparado SÓ aqui** — webhook Kirvano no app (`meta-capi.server.ts`), `event_id = sale_id`, com email/fbp/fbc/ip do tracking_session. |
 | **Bridge** | external_id (qs_UUID) viaja como ?src= na URL Kirvano. Client salva fbp/fbc/ua em `tracking_sessions`. Server busca por external_id e junta com email/phone do webhook. |
 | **Gaps conhecidos** | Evento Lead ausente (quiz salva lead no DB mas não dispara fbq). CAPI ausente para PageView e InitiateCheckout. PageView sem eventID. Ver `AUDIT_TRACKING_META.md` para roadmap completo. |
 
@@ -175,24 +175,30 @@ cd ~/rotina-de-paz && npx wrangler pages deploy dist --project-name=rotina-de-pa
 
 ### Fluxo completo do funil
 
+> 📄 **Detalhes completos da integração one-click + config Kirvano + bugs conhecidos:**
+> `docs/UPSELL-DOWNSELL-KIRVANO.md` — LEIA antes de mexer no upsell/downsell.
+
 ```
 Quiz (7 perguntas)
   → Resultado (arquétipo + narração word-by-word)
     → Oferta (Rotina de Paz R$47)
-      → [InitiateCheckout pixel (value: 47, eventID) + salva tracking_session]
+      → [InitiateCheckout pixel + salva tracking_session]
       → Checkout Kirvano (redirect com ?src=external_id + UTMs)
         → Kirvano processa pagamento
-          → Webhook → app → entitlements + CAPI Purchase (server)
-          → Redirect → /sacra/obrigado?value=47&transaction_id=X
-            → Purchase pixel (client, value: 47, fallback se URL sem value, dedup via transaction_id)
+          → Webhook → app → entitlements + CAPI Purchase (server, event_id=sale_id)
+          → Redirect → /sacra/obrigado?offer=upsell&kirvano_upsell=<token>
             → Animação "liberando acesso" (1.2s)
-            → Upsell: A Chave da Gratidão (R$67)
-              → Aceita: modal Kirvano (iframe, fallback redirect 4s)
-              → Recusa: /sacra/obrigado?offer=downsell
-                → Downsell: mesma oferta por R$37
-                  → Aceita: modal Kirvano
-                  → Recusa: redirect para app login
+            → Upsell: A Chave da Gratidão (R$67) — ONE-CLICK
+              → Aceita: modal one-click Kirvano (.kirvano-payment-trigger; cartão cobra na hora)
+              → Recusa: /sacra/obrigado?offer=downsell (.kirvano-refuse-trigger)
+                → Downsell: Chave da Gratidão por R$37
+                  → Aceita: modal one-click
+                  → Recusa: redirect para app (/login)
 ```
+
+⚠️ **One-click PIX:** com `nextPageURL` externo (`/app`), o PIX navega sem gerar o QR.
+Para PIX gerar QR no modal, a estratégia Kirvano deve ser "Caso aceite → Página de obrigado".
+Cartão funciona em qualquer caso. Ver `docs/UPSELL-DOWNSELL-KIRVANO.md`.
 
 ### Secrets necessários
 
