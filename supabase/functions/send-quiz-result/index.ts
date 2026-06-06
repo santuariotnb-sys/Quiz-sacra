@@ -1,13 +1,13 @@
 // Edge Function: send-quiz-result
-// Espelha a página de oferta (Sessão Oferta) num email: arquétipo + capítulos
-// personalizados + versículo + método + bônus + preço (De R$129 → R$47) + garantia.
-// Chamada pelo quiz após o lead informar o email. Segurança: só envia para leads que
-// existem na tabela (anti-spam) e valida o formato do email.
+// Email do resultado do quiz no MESMO arco da sessão de resultado → oferta:
+//   1. Padrão (arquétipo) + contexto ("O que está acontecendo")
+//   2. Card ROXO (a verdade + versículo + selo)
+//   3. Ponte do desejo → oferta
+//   4. Oferta (imagem no topo + método + capítulos + bônus + preço + garantia + CTA)
+// Segurança: só envia para leads que existem (anti-spam) e valida o email.
 //
 // Deploy:
-//   cd ~/Quiz-sacra && supabase link --project-ref cemjibbauvvyfaxilrvm
-//   supabase secrets set RESEND_API_KEY=re_... --project-ref cemjibbauvvyfaxilrvm
-//   supabase functions deploy send-quiz-result --project-ref cemjibbauvvyfaxilrvm
+//   cd ~/Quiz-sacra && supabase functions deploy send-quiz-result --project-ref cemjibbauvvyfaxilrvm
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -20,6 +20,8 @@ const CORS = {
 const KIRVANO_URL =
   "https://pay.kirvano.com/0b6125dc-2775-401d-8abc-90676c29031c?utm_source=email&utm_medium=quiz_result&utm_campaign=sacra";
 const FROM = "Rotina de Paz <ola@rotinadepaz.com.br>";
+const OFFER_IMG =
+  "https://cemjibbauvvyfaxilrvm.supabase.co/storage/v1/object/public/email-assets/oferta-topo.jpg";
 
 // Paleta da marca (igual src/styles.css)
 const C = {
@@ -29,9 +31,12 @@ const C = {
 
 type Chapter = { num?: string; title?: string; period?: string; description?: string };
 type Body = {
-  name?: string; archetypeName: string; subtitle?: string;
-  chapters?: Chapter[]; verseRef?: string; verseText?: string; seal?: string;
-  ctaLabel?: string; quote?: string | null;
+  email?: string; name?: string;
+  archetypeName: string; tagline?: string; bridge?: string | null;
+  happening?: string; mirror?: string;
+  truthTitle?: string; truthTitleEm?: string; truthBody?: string;
+  verseRef?: string; verseText?: string; seal?: string;
+  chapters?: Chapter[]; ctaLabel?: string; quote?: string | null;
 };
 
 const esc = (s: unknown) =>
@@ -39,13 +44,17 @@ const esc = (s: unknown) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!)
   );
 
+// Conteúdo rico vindo do quiz (quiz.ts): <p>/<strong>/<blockquote>. É conteúdo
+// próprio (não input de usuário) e o destinatário é o próprio lead — injeta confiável.
+const rich = (h: unknown) => String(h ?? "");
+
 const cta = (label: string) =>
   `<table role="presentation" style="width:100%;margin:6px 0"><tr><td align="center">
     <a href="${KIRVANO_URL}" style="display:inline-block;background:linear-gradient(135deg,#D9C5A5 0%,#C9A876 100%);color:${C.deep};font-size:16px;font-weight:bold;text-decoration:none;padding:16px 32px;border-radius:999px;box-shadow:0 10px 24px -8px rgba(201,168,118,0.6)">${esc(label)} →</a>
   </td></tr></table>`;
 
-const sectionTitle = (t: string) =>
-  `<p style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:${C.goldWarm};margin:0 0 4px"><span style="color:${C.lavender}">—</span> ${esc(t)}</p>`;
+const eyebrow = (t: string) =>
+  `<p style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:${C.goldWarm};margin:0 0 4px"><span style="color:${C.lavender}">—</span> ${esc(t)} <span style="color:${C.lavender}">—</span></p>`;
 
 function buildHtml(d: Body) {
   const greet = d.name ? `${esc(d.name)}, ` : "";
@@ -77,34 +86,48 @@ function buildHtml(d: Body) {
   return `<!doctype html><html><body style="margin:0;padding:0;background:${C.milk};font-family:Arial,Helvetica,sans-serif">
   <div style="max-width:600px;margin:0 auto;padding:28px 20px;color:${C.deep}">
 
-    <!-- HEADER ARQUÉTIPO -->
-    <p style="text-align:center;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${C.goldWarm};margin:0 0 6px;font-style:italic">Método completo · 7 dias</p>
-    <h1 style="text-align:center;font-size:36px;line-height:1.05;margin:0 0 4px;color:${C.deep}">${esc(d.archetypeName)}</h1>
-    ${d.subtitle ? `<p style="text-align:center;font-size:16px;color:${C.amethyst};margin:0 0 22px;font-style:italic">${esc(d.subtitle)}</p>` : ""}
-    <p style="text-align:center;font-size:15px;line-height:1.6;color:${C.amethyst};margin:0 0 26px">${greet}seu resultado está pronto — e abaixo está o caminho específico pro seu padrão.</p>
+    <!-- 1. PADRÃO (arquétipo) -->
+    <p style="text-align:center;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${C.goldWarm};margin:0 0 6px;font-style:italic">✦ Padrão raiz identificado ✦</p>
+    <h1 style="text-align:center;font-size:38px;line-height:1;margin:0 0 4px;color:${C.deep}">${esc(d.archetypeName)}</h1>
+    ${d.tagline ? `<p style="text-align:center;font-size:17px;color:${C.amethyst};margin:0 0 18px;font-style:italic">${esc(d.tagline)}</p>` : ""}
+    ${d.bridge ? `<p style="text-align:center;font-size:17px;line-height:1.5;font-style:italic;color:${C.deep};margin:0 0 26px">${esc(d.bridge)}</p>` : ""}
 
-    <!-- O QUE VOCÊ RECEBE -->
-    ${sectionTitle("O que você recebe")}
+    <!-- 2. CONTEXTO: O que está acontecendo -->
+    ${d.happening ? `<h2 style="font-size:21px;color:${C.deep};margin:0 0 10px"><span style="color:${C.goldWarm}">›</span> O que está acontecendo</h2>
+    <div style="font-size:15px;line-height:1.65;color:${C.amethyst};margin:0 0 14px">${rich(d.happening)}</div>` : ""}
+    ${d.mirror ? `<p style="font-size:18px;font-style:italic;line-height:1.5;color:${C.deep};border-left:3px solid ${C.gold};padding:2px 0 2px 18px;margin:0 0 26px">"${esc(d.mirror)}"</p>` : ""}
+
+    <!-- 3. CARD ROXO: a verdade -->
+    <table role="presentation" style="width:100%;margin:0 0 26px"><tr><td style="background:#2f2440;border-radius:20px;padding:30px 26px;text-align:center;color:#fff">
+      <p style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${C.gold};margin:0 0 12px">A verdade que você precisa ouvir</p>
+      ${(d.truthTitle || d.truthTitleEm) ? `<p style="font-size:25px;line-height:1.2;font-weight:bold;color:#fcf7ef;margin:0 0 14px">${esc(d.truthTitle)} <span style="font-style:italic;font-weight:normal;color:${C.gold}">${esc(d.truthTitleEm)}</span></p>` : ""}
+      ${d.truthBody ? `<div style="font-size:15px;line-height:1.6;color:#d6cdda;margin:0 0 18px">${rich(d.truthBody)}</div>` : ""}
+      ${(d.verseText || d.verseRef) ? `<table role="presentation" style="width:100%;margin:0 0 16px"><tr><td style="border:1px solid rgba(217,197,165,0.28);background:rgba(255,255,255,0.05);border-radius:12px;padding:16px 18px">
+        ${d.verseRef ? `<p style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:${C.gold};margin:0 0 6px">${esc(d.verseRef)}</p>` : ""}
+        ${d.verseText ? `<p style="font-size:17px;font-style:italic;line-height:1.45;color:#fcf7ef;margin:0">"${esc(d.verseText)}"</p>` : ""}
+      </td></tr></table>` : ""}
+      ${seal ? `<p style="font-size:16px;font-style:italic;line-height:1.55;color:#e6deed;margin:0">${seal}</p>` : ""}
+    </td></tr></table>
+
+    <!-- 4. PONTE do desejo → oferta -->
+    ${d.quote ? `<p style="text-align:center;font-size:16px;font-style:italic;color:${C.amethyst};margin:0 0 6px">Você lembra do seu desejo: "${esc(d.quote)}"</p>` : ""}
+    <p style="text-align:center;font-size:21px;color:${C.deep};margin:0 0 8px">Esse é o caminho específico pra ele.</p>
+    <p style="text-align:center;font-size:15px;line-height:1.6;color:${C.amethyst};margin:0 0 22px">${greet}entender o padrão é metade. A outra metade é o método que desliga o alarme — passo a passo, no app.</p>
+
+    <!-- 5. OFERTA: imagem no topo -->
+    <img src="${OFFER_IMG}" alt="Comece sua Rotina de Paz hoje" width="600" style="display:block;width:100%;max-width:600px;height:auto;border-radius:16px;margin:0 0 24px" />
+
+    ${eyebrow("O que você recebe")}
     <p style="font-size:15px;line-height:1.6;margin:4px 0 6px;color:${C.amethyst}"><strong style="color:${C.deep}">14 sessões guiadas em áudio</strong>: <strong style="color:${C.deep}">7 capítulos</strong> pra usar de manhã e <strong style="color:${C.deep}">7 à noite</strong>.</p>
-    <p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:${C.amethyst}">Cada sessão tem de <strong style="color:${C.deep}">8 a 12 minutos</strong> — cabe entre uma tarefa e outra, antes de dormir, antes da casa acordar.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 22px;color:${C.amethyst}">Cada sessão tem de <strong style="color:${C.deep}">8 a 12 minutos</strong> — cabe entre uma tarefa e outra, antes de dormir, antes da casa acordar.</p>
 
-    <!-- ESPECIALMENTE PRA VOCÊ -->
-    ${chapters ? `${sectionTitle("Especialmente pra você")}
+    ${chapters ? `${eyebrow("Especialmente pra você")}
     <p style="font-size:15px;margin:4px 0 14px;color:${C.amethyst}">Dois capítulos foram feitos especificamente para o seu padrão:</p>
     <table role="presentation" style="width:100%">${chapters}</table>` : ""}
 
-    <!-- CARD ESCURO: VERSÍCULO -->
-    ${(d.verseText || seal) ? `<table role="presentation" style="width:100%;margin:8px 0 26px"><tr><td style="background:${C.deep};border-radius:16px;padding:24px;color:#fff">
-      ${d.verseText ? `<p style="font-size:18px;line-height:1.5;font-style:italic;margin:0 0 8px">"${esc(d.verseText)}"</p>` : ""}
-      ${d.verseRef ? `<p style="font-size:13px;color:${C.lavender};margin:0 0 14px">— ${esc(d.verseRef)}</p>` : ""}
-      ${seal ? `<p style="font-size:15px;line-height:1.5;margin:0;color:#fcf7ef">${seal}</p>` : ""}
-    </td></tr></table>` : ""}
-
-    <!-- JUNTO COM O MÉTODO -->
-    ${sectionTitle("Junto com o método, você leva")}
+    ${eyebrow("Junto com o método, você leva")}
     <table role="presentation" style="width:100%;margin:6px 0 18px">${leva}</table>
 
-    <!-- BÔNUS -->
     <table role="presentation" style="width:100%;background:${C.milkWarm};border:1px solid ${C.border};border-radius:14px;margin:0 0 28px"><tr><td style="padding:16px 18px">
       <p style="font-size:14px;font-style:italic;color:${C.goldWarm};margin:0 0 8px">✦ Bônus para fortalecer sua Rotina de Paz</p>
       <table role="presentation" style="width:100%">${bonus}</table>
@@ -120,9 +143,6 @@ function buildHtml(d: Body) {
       <p style="font-size:11px;color:${C.amethyst};margin:6px 0 0">🔒 Acesso imediato · Pagamento 100% seguro</p>
     </td></tr></table>
 
-    <!-- FECHAMENTO + CTA -->
-    ${d.quote ? `<p style="text-align:center;font-size:16px;font-style:italic;color:${C.amethyst};margin:0 0 8px">Você lembra do seu desejo: "${esc(d.quote)}"</p>` : ""}
-    <p style="text-align:center;font-size:20px;margin:0 0 18px;color:${C.deep}">Esse é o caminho específico pra ele.</p>
     ${cta(d.ctaLabel || "Eu creio — quero minha paz")}
     <p style="text-align:center;font-size:11px;color:${C.amethyst};margin:8px 0 24px">🔒 Acesso imediato após pagamento · Pagamento 100% seguro</p>
 
@@ -142,7 +162,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json()) as Body;
-    const email = String((body as { email?: string }).email ?? "").trim().toLowerCase();
+    const email = String(body.email ?? "").trim().toLowerCase();
     const archetypeName = String(body.archetypeName ?? "").trim();
 
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !archetypeName) {
