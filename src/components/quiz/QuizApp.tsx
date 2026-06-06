@@ -107,6 +107,7 @@ export function QuizApp() {
   const [encouragement, setEncouragement] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [emailSaved, setEmailSaved] = useState(false);
+  const [sending, setSending] = useState(false);
   const startTsRef = useRef<number>(Date.now());
 
   useEffect(() => {
@@ -248,31 +249,52 @@ export function QuizApp() {
   }
 
   async function saveEmail() {
-    setEmailSaved(true);
+    setSending(true);
     const sb = getSupabase();
-    if (!sb || !email || !archetype) return;
+    if (!sb || !email || !archetype) { setSending(false); return; }
     try {
       const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
       if (stored.lead_id) {
         const { error } = await sb.rpc("save_lead_email", { p_lead_id: stored.lead_id, p_email: email });
         if (error) console.error("[save_lead_email] falhou:", error.message, error.code);
-        return;
+      } else {
+        // Fallback: lead_id não disponível — cria novo lead com email
+        const utms = captureUtms();
+        await sb.rpc("persist_lead", {
+          p_name: name || null,
+          p_archetype: archetype,
+          p_desire: desire ?? null,
+          p_situation: situation ?? null,
+          p_risk_flag: false,
+          ...Object.fromEntries(Object.entries(utms).map(([k, v]) => ["p_" + k, v])),
+        });
       }
+      // Dispara o email de resultado (com a oferta completa) — fire-and-forget.
+      // O email é um bônus: nunca bloqueia/quebra a gravação do lead.
+      if (arche) {
+        void sb.functions
+          .invoke("send-quiz-result", {
+            body: {
+              email,
+              name: name || null,
+              archetypeName: arche.name,
+              subtitle: arche.subtitle,
+              chapters: arche.chapters,
+              verseRef: arche.result.verseRef,
+              verseText: arche.result.verseText,
+              seal: arche.result.seal,
+              ctaLabel: (desire && DESIRE_CTA[desire]) || "Eu creio — quero minha paz",
+              quote: (desire && DESIRE_QUOTE[desire]) || null,
+            },
+          })
+          .catch((err) => console.error("[send-quiz-result] falhou:", err));
+      }
+      setEmailSaved(true); // só marca como enviado APÓS gravar (antes mentia: setava antes do RPC)
     } catch (e) {
       console.error("[saveEmail] erro inesperado:", e);
+    } finally {
+      setSending(false);
     }
-    // Fallback: lead_id não disponível — cria novo lead com email
-    const utms = captureUtms();
-    await sb.rpc("persist_lead", {
-      p_name: name || null,
-      p_archetype: archetype,
-      p_desire: desire ?? null,
-      p_situation: situation ?? null,
-      p_risk_flag: false,
-      ...Object.fromEntries(
-        Object.entries(utms).map(([k, v]) => ["p_" + k, v]),
-      ),
-    });
   }
 
   function goToOffer() {
@@ -332,6 +354,7 @@ export function QuizApp() {
             email={email}
             setEmail={setEmail}
             emailSaved={emailSaved}
+            sending={sending}
             onSaveEmail={saveEmail}
             onContinue={goToOffer}
           />
@@ -723,6 +746,7 @@ function ResultScreen({
   email,
   setEmail,
   emailSaved,
+  sending,
   onSaveEmail,
   onContinue,
 }: {
@@ -733,6 +757,7 @@ function ResultScreen({
   email: string;
   setEmail: (s: string) => void;
   emailSaved: boolean;
+  sending: boolean;
   onSaveEmail: () => void;
   onContinue: () => void;
 }) {
@@ -745,7 +770,7 @@ function ResultScreen({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6 }}
-      className="mx-auto max-w-xl px-5 pb-16 pt-10 sm:px-8"
+      className="mx-auto max-w-xl overflow-x-clip px-5 pb-16 pt-10 sm:px-8"
     >
       {/* Chat — avatar + fala da guia (mantido) */}
       <div className="flex items-start gap-3 sm:gap-5">
@@ -765,7 +790,7 @@ function ResultScreen({
           Padrão raiz identificado
           <span className="text-[color:var(--gold)]">✦</span>
         </p>
-        <h1 className="mt-2 whitespace-nowrap font-display text-[clamp(1.9rem,8.4vw,4.5rem)] font-bold leading-[0.96] text-[color:var(--deep-purple)]">
+        <h1 className="mt-2 break-words font-display text-[clamp(1.9rem,8.4vw,4.5rem)] font-bold leading-[0.96] text-[color:var(--deep-purple)]">
           {archetype.name}
         </h1>
         <p className="mt-2 font-display text-lg italic text-[color:var(--amethyst)]">
@@ -898,9 +923,14 @@ function ResultScreen({
               />
               <button
                 type="submit"
-                className="mt-2.5 w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] py-3.5 text-sm font-medium text-[color:var(--deep-purple)] transition hover:bg-[color:var(--lavender)]/25"
+                disabled={!email.includes("@") || sending}
+                className={`mt-2.5 w-full rounded-full py-3.5 text-sm font-semibold transition ${
+                  email.includes("@") && !sending
+                    ? "bg-[color:var(--gold-warm)] text-white shadow-[0_6px_20px_-8px_rgba(201,168,118,0.6)] hover:brightness-105"
+                    : "cursor-not-allowed border border-[color:var(--border)] bg-[color:var(--milk-warm)] text-[color:var(--lavender)]"
+                }`}
               >
-                Enviar
+                {sending ? "Enviando…" : "Enviar"}
               </button>
             </form>
           )}

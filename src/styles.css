@@ -50,6 +50,12 @@
     border-color: var(--color-border);
   }
 
+  html, body {
+    /* Mata scroll lateral acidental sem criar scroll container (clip > hidden). */
+    overflow-x: clip;
+    max-width: 100vw;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);

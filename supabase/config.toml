@@ -1,5 +1,4 @@
-[project]
-id = ""
+project_id = "cemjibbauvvyfaxilrvm"
 
 [api]
 port = 54321
