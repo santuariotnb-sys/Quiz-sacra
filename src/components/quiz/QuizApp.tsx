@@ -931,7 +931,7 @@ function ResultScreen({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6 }}
-      className="mx-auto max-w-xl overflow-x-clip px-5 pb-16 pt-10 sm:px-8"
+      className="mx-auto max-w-xl px-5 pb-16 pt-10 sm:px-8"
     >
       {/* 1. Saudação */}
       <div className="flex items-start gap-3 sm:gap-5">
@@ -953,7 +953,7 @@ function ResultScreen({
           <span className="text-[color:var(--gold)]">✦</span>
         </p>
         <h1 className="rdp-arch-in mt-2 font-display font-bold leading-[0.95] text-[color:var(--deep-purple)]"
-            style={{ fontSize: "clamp(2rem, 10vw, 5.5rem)", whiteSpace: "nowrap" }}>
+            style={{ fontSize: "clamp(1.6rem, 7vw, 4rem)" }}>
           {archetype.name}
         </h1>
         <p className="mt-2 font-display text-[21px] italic text-[color:var(--amethyst)]"
@@ -1094,7 +1094,7 @@ function ResultScreen({
               <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
             </button>
             <p className="mt-3 text-[12.5px] text-[color:var(--amethyst)]">
-              Leva 30s · sem compromisso · garantia de 7 dias
+              Sem compromisso · garantia de 7 dias
             </p>
           </div>
         </section>
