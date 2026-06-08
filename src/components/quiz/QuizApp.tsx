@@ -7,6 +7,8 @@ import { EmotionalProgress } from "./EmotionalProgress";
 import {
   ARCHETYPES,
   CONFIRMATIONS,
+  DESIRE_BEAT,
+  DESIRE_BEAT_FALLBACK,
   DESIRE_CTA,
   DESIRE_QUOTE,
   ENCOURAGEMENTS,
@@ -16,6 +18,7 @@ import {
   type Archetype,
   type ArchetypeData,
 } from "@/data/quiz";
+import { Component, type ErrorInfo } from "react";
 import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
@@ -110,12 +113,14 @@ export function QuizApp() {
   );
   const [name, setName] = useState(saved?.name ?? "");
   const [qIndex, setQIndex] = useState(0);
+  const qIndexRef = useRef(qIndex);
+  qIndexRef.current = qIndex;
+  const answeringRef = useRef(false);
   const [answers, setAnswers] = useState<Record<string, string>>(saved?.answers ?? {});
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [encouragement, setEncouragement] = useState<string | null>(null);
   const [whatsapp, setWhatsapp] = useState(saved?.whatsapp ?? "");
   const [email, setEmail] = useState(saved?.email ?? "");
-  const [emailSaved, setEmailSaved] = useState(false);
   const [sending, setSending] = useState(false);
   const startTsRef = useRef<number>(Date.now());
 
@@ -158,32 +163,47 @@ export function QuizApp() {
   };
 
   const answer = async (value: string) => {
-    const q = QUESTIONS[qIndex];
-    const opt = q.options.find((o) => o.value === value);
-    if (!opt) return;
+    // Guard: bloqueia cliques durante transição (previne stale closure / double-click)
+    if (answeringRef.current) return;
+    answeringRef.current = true;
 
-    playDing();
+    const idx = qIndexRef.current; // ref = sempre valor atual, sem stale closure
+
+    const q = QUESTIONS[idx];
+    if (!q) { answeringRef.current = false; return; }
+    const opt = q.options.find((o) => o.value === value);
+    if (!opt) { answeringRef.current = false; return; }
+
+    try { playDing(); } catch {}
     const next = { ...answers, [q.key]: value };
     setAnswers(next);
     setConfirmation(CONFIRMATIONS[Math.floor(Math.random() * CONFIRMATIONS.length)]);
     window.setTimeout(() => setConfirmation(null), 900);
 
-    const isLast = qIndex === QUESTIONS.length - 1;
+    const isLast = idx === QUESTIONS.length - 1;
+
     if (isLast) {
-      window.setTimeout(() => setStage("loading"), 450);
-      return;
+      window.setTimeout(() => {
+
+        setStage("loading");
+      }, 450);
+      return; // answeringRef stays true — quiz over
     }
 
     // encorajamento a cada 3 perguntas
-    if ((qIndex + 1) % 3 === 0) {
-      const msg = ENCOURAGEMENTS[Math.min(Math.floor((qIndex + 1) / 3) - 1, ENCOURAGEMENTS.length - 1)];
+    if ((idx + 1) % 3 === 0) {
+      const msg = ENCOURAGEMENTS[Math.min(Math.floor((idx + 1) / 3) - 1, ENCOURAGEMENTS.length - 1)];
       setEncouragement(msg);
       window.setTimeout(() => {
         setEncouragement(null);
         setQIndex((i) => i + 1);
+        answeringRef.current = false; // libera próxima resposta
       }, 2500);
     } else {
-      window.setTimeout(() => setQIndex((i) => i + 1), 500);
+      window.setTimeout(() => {
+        setQIndex((i) => i + 1);
+        answeringRef.current = false; // libera próxima resposta
+      }, 500);
     }
   };
 
@@ -216,7 +236,10 @@ export function QuizApp() {
     for (let i = 1; i < messages; i++) {
       timers.push(window.setTimeout(() => setLoadingMsg(i), step * i));
     }
-    timers.push(window.setTimeout(() => setStage("contact"), step * messages));
+    timers.push(window.setTimeout(() => {
+
+      setStage("contact");
+    }, step * messages));
     // Persiste lead no Supabase (best effort). Lead event disparado na captura de contato.
     void persistLead(answers).catch(() => {});
     return () => timers.forEach(clearTimeout);
@@ -266,61 +289,6 @@ export function QuizApp() {
       time_to_answer: Math.round(totalTime / QUESTIONS.length),
     }));
     await sb.rpc("persist_quiz_responses", { p_rows: rows });
-  }
-
-  async function saveEmail() {
-    setSending(true);
-    const sb = getSupabase();
-    if (!sb || !email || !archetype) { setSending(false); return; }
-    try {
-      const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
-      if (stored.lead_id) {
-        const { error } = await sb.rpc("save_lead_email", { p_lead_id: stored.lead_id, p_email: email });
-        if (error) console.error("[save_lead_email] falhou:", error.message, error.code);
-      } else {
-        // Fallback: lead_id não disponível — cria novo lead com email
-        const utms = captureUtms();
-        await sb.rpc("persist_lead", {
-          p_name: name || null,
-          p_archetype: archetype,
-          p_desire: desire ?? null,
-          p_situation: situation ?? null,
-          p_risk_flag: false,
-          ...Object.fromEntries(Object.entries(utms).map(([k, v]) => ["p_" + k, v])),
-        });
-      }
-      // Dispara o email de resultado (com a oferta completa) — fire-and-forget.
-      // O email é um bônus: nunca bloqueia/quebra a gravação do lead.
-      if (arche) {
-        void sb.functions
-          .invoke("send-quiz-result", {
-            body: {
-              email,
-              name: name || null,
-              archetypeName: arche.name,
-              tagline: arche.result.tagline,
-              bridge, // linha personalizada da situação
-              happening: arche.result.happening,
-              mirror: arche.result.mirror,
-              truthTitle: arche.result.truthTitle,
-              truthTitleEm: arche.result.truthTitleEm,
-              truthBody: arche.result.truthBody,
-              verseRef: arche.result.verseRef,
-              verseText: arche.result.verseText,
-              seal: arche.result.seal,
-              chapters: arche.chapters,
-              ctaLabel: (desire && DESIRE_CTA[desire]) || "Eu creio — quero minha paz",
-              quote: (desire && DESIRE_QUOTE[desire]) || null,
-            },
-          })
-          .catch((err) => console.error("[send-quiz-result] falhou:", err));
-      }
-      setEmailSaved(true); // só marca como enviado APÓS gravar (antes mentia: setava antes do RPC)
-    } catch (e) {
-      console.error("[saveEmail] erro inesperado:", e);
-    } finally {
-      setSending(false);
-    }
   }
 
   function goToOffer() {
@@ -382,7 +350,6 @@ export function QuizApp() {
               },
             })
             .catch((err) => console.error("[send-quiz-result] falhou:", err));
-          setEmailSaved(true);
         }
       }
 
@@ -427,6 +394,7 @@ export function QuizApp() {
   // ---------- RENDER ----------
 
   return (
+    <QuizErrorBoundary>
     <main className="relative min-h-dvh overflow-hidden bg-[color:var(--milk)]">
       <AmbientParticles active={stage === "loading"} />
 
@@ -476,11 +444,6 @@ export function QuizApp() {
             bridge={bridge}
             name={name}
             desire={desire}
-            email={email}
-            setEmail={setEmail}
-            emailSaved={emailSaved}
-            sending={sending}
-            onSaveEmail={saveEmail}
             onContinue={goToOffer}
           />
         )}
@@ -496,6 +459,7 @@ export function QuizApp() {
         )}
       </AnimatePresence>
     </main>
+    </QuizErrorBoundary>
   );
 }
 
@@ -916,59 +880,31 @@ function ContactGateScreen({
 
 /* ============================== RESULT ============================== */
 
-// Reveal-on-scroll reutilizável.
-function Reveal({ children, className }: { children: ReactNode; className?: string }) {
+// Reveal-on-scroll reutilizável (respeita prefers-reduced-motion via framer-motion).
+function Reveal({ children, className, pop }: { children: ReactNode; className?: string; pop?: boolean }) {
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 22 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.18 }}
-      transition={{ duration: 0.75, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 26, ...(pop ? { scale: 0.97 } : {}) }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      viewport={{ once: true, amount: 0.16 }}
+      transition={{ duration: 0.9, ease: [0.2, 0.7, 0.2, 1] }}
     >
       {children}
     </motion.div>
   );
 }
 
-// Fio-guia animado com micro-CTA. emphasis = estilo serif itálico (vs eyebrow dourado).
-function GuideThread({ label, emphasis }: { label: string; emphasis?: boolean }) {
+function ScrollCue() {
   return (
-    <div className="flex flex-col items-center gap-3 py-5">
-      <span
-        className={
-          emphasis
-            ? "max-w-xs px-6 text-center font-display text-base italic text-[color:var(--amethyst)]"
-            : "text-center text-[11px] font-medium uppercase tracking-[0.26em] text-[color:var(--gold-warm)]"
-        }
-      >
-        {label}
+    <div className="mt-8 flex flex-col items-center gap-2.5">
+      <span className="text-center text-[11px] font-medium uppercase tracking-[0.24em] text-[color:var(--gold-warm)]">
+        Role e descubra
       </span>
-      <svg width="22" height="56" viewBox="0 0 22 56" fill="none" className="overflow-visible">
-        <motion.path
-          d="M11 2 V38"
-          stroke="var(--gold)"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeDasharray="2 9"
-          initial={{ pathLength: 0 }}
-          whileInView={{ pathLength: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 1.1, ease: "easeOut" }}
-        />
-        <motion.path
-          d="M11 52 L4 39 H18 Z"
-          fill="var(--gold)"
-          style={{ transformBox: "fill-box", transformOrigin: "center" }}
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1, y: [0, 6, 0] }}
-          viewport={{ once: true }}
-          transition={{
-            opacity: { delay: 0.9, duration: 0.4 },
-            y: { delay: 1.2, duration: 1.6, repeat: Infinity, ease: "easeInOut" },
-          }}
-        />
-      </svg>
+      <div className="rdp-bob flex h-[38px] w-[22px] flex-col items-center">
+        <span className="h-[26px] w-px bg-gradient-to-b from-[color:var(--gold-warm)] to-transparent" />
+        <span className="mt-auto h-2 w-2 rotate-45 border-b-[1.5px] border-r-[1.5px] border-[color:var(--gold-warm)]" />
+      </div>
     </div>
   );
 }
@@ -978,27 +914,17 @@ function ResultScreen({
   bridge,
   name,
   desire,
-  email,
-  setEmail,
-  emailSaved,
-  sending,
-  onSaveEmail,
   onContinue,
 }: {
   archetype: ArchetypeData;
   bridge: string | null;
   name: string;
   desire?: string;
-  email: string;
-  setEmail: (s: string) => void;
-  emailSaved: boolean;
-  sending: boolean;
-  onSaveEmail: () => void;
   onContinue: () => void;
 }) {
-  const ctaLabel = (desire && DESIRE_CTA[desire]) || "Quero meu caminho de paz";
   const r = archetype.result;
-  const [tab, setTab] = useState<"yes" | "no">("yes");
+  const beat = (desire && DESIRE_BEAT[desire]) || DESIRE_BEAT_FALLBACK;
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
@@ -1007,7 +933,7 @@ function ResultScreen({
       transition={{ duration: 0.6 }}
       className="mx-auto max-w-xl overflow-x-clip px-5 pb-16 pt-10 sm:px-8"
     >
-      {/* Chat — avatar + fala da guia (mantido) */}
+      {/* 1. Saudação */}
       <div className="flex items-start gap-3 sm:gap-5">
         <GuideAvatar size="corner" />
         <div className="flex-1 pt-1">
@@ -1018,171 +944,174 @@ function ResultScreen({
         </div>
       </div>
 
-      {/* Header arquétipo */}
-      <Reveal className="mt-10 text-center">
-        <p className="flex items-center justify-center gap-3 font-display text-[13px] italic uppercase tracking-[0.26em] text-[color:var(--gold-warm)]">
+      {/* 2. Arquétipo — entrada animada (archIn) */}
+      <div className="mt-10 text-center">
+        <p className="flex items-center justify-center gap-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]"
+           style={{ animation: "fadeIn .8s .2s ease both" }}>
           <span className="text-[color:var(--gold)]">✦</span>
           Padrão raiz identificado
           <span className="text-[color:var(--gold)]">✦</span>
         </p>
-        <h1 className="mt-2 break-words font-display text-[clamp(1.9rem,8.4vw,4.5rem)] font-bold leading-[0.96] text-[color:var(--deep-purple)]">
+        <h1 className="rdp-arch-in mt-2 font-display font-bold leading-[0.95] text-[color:var(--deep-purple)]"
+            style={{ fontSize: "clamp(2rem, 10vw, 5.5rem)", whiteSpace: "nowrap" }}>
           {archetype.name}
         </h1>
-        <p className="mt-2 font-display text-lg italic text-[color:var(--amethyst)]">
+        <p className="mt-2 font-display text-[21px] italic text-[color:var(--amethyst)]"
+           style={{ animation: "fadeIn .8s .7s ease both" }}>
           {r.tagline}
         </p>
-      </Reveal>
+      </div>
 
-      <GuideThread label="Role e descubra" />
+      {/* 3. Scroll cue + seta pulsante */}
+      <ScrollCue />
 
-      {/* Linha personalizada (situation) */}
+      {/* 4. Bridge (situation-specific) */}
       {bridge && (
-        <Reveal>
-          <p className="mx-auto max-w-md text-center font-display text-xl italic leading-snug text-[color:var(--deep-purple)]">
+        <Reveal className="mt-9">
+          <p className="mx-auto max-w-md text-center font-display text-[23px] italic leading-[1.4] text-[color:var(--deep-purple)]">
             {bridge}
           </p>
         </Reveal>
       )}
 
-      {/* O que está acontecendo */}
+      {/* 5. O que está acontecendo */}
       <Reveal className="mt-8">
-        <h2 className="flex items-center gap-2 font-display text-2xl text-[color:var(--deep-purple)]">
+        <h2 className="flex items-center gap-2 font-display text-[27px] font-semibold text-[color:var(--deep-purple)]">
           <span className="text-[color:var(--gold-warm)]">›</span>O que está acontecendo
         </h2>
         <p
-          className="mt-3 leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
+          className="mt-3 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
           dangerouslySetInnerHTML={{ __html: r.happening }}
         />
-        <p className="mt-5 border-l-[3px] border-[color:var(--gold)] pl-5 font-display text-xl italic leading-snug text-[color:var(--deep-purple)]">
-          “{r.mirror}”
+        <blockquote className="mt-5 border-l-[3px] border-[color:var(--gold)] pl-5 font-display text-[21px] italic leading-[1.4] text-[color:var(--deep-purple)]">
+          "{r.mirror}"
+        </blockquote>
+      </Reveal>
+
+      {/* 6. Label "A verdade sobre isso" */}
+      <Reveal className="mt-6">
+        <p className="text-center font-display text-[18px] italic text-[color:var(--amethyst)]">
+          A verdade sobre isso
         </p>
       </Reveal>
 
-      <GuideThread label="A verdade sobre isso" emphasis />
-
-      {/* Card verdade — escuro */}
-      <Reveal>
-        <section
-          className="relative overflow-hidden rounded-3xl px-7 py-11 text-center sm:px-9"
-          style={{
-            background: "radial-gradient(130% 110% at 50% 0%, #382b46, #2a2236)",
-            boxShadow: "0 26px 60px -40px rgba(42,34,54,.65)",
-          }}
-        >
-          <div className="mx-auto max-w-md">
-            <p className="text-[10px] uppercase tracking-[0.26em] text-[color:var(--gold)]">
-              A verdade que você precisa ouvir
+      {/* 7. Card 1 — Verdade (fundo texturizado dourado) */}
+      <Reveal className="mt-4" pop>
+        <section className="rdp-card-verdade rounded-[18px] px-7 py-8 text-center sm:px-9">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]">
+            A verdade que você precisa ouvir
+          </p>
+          <h3 className="mt-3 font-display text-[30px] font-semibold leading-[1.15] text-[color:var(--deep-purple)]">
+            {r.truthTitle}{" "}
+            <em className="italic text-[color:var(--gold-warm)]">{r.truthTitleEm}</em>
+          </h3>
+          <p
+            className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
+            dangerouslySetInnerHTML={{ __html: r.truthBody }}
+          />
+          {/* Versículo com entrada própria */}
+          <motion.div
+            className="mt-5"
+            initial={{ opacity: 0, y: 14, scale: 0.96 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 1, delay: 0.15, ease: "easeOut" }}
+          >
+            <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--gold-warm)]">
+              {r.verseRef}
             </p>
-            <h3 className="mt-3 font-display text-3xl font-semibold leading-tight text-[#fcf7ef]">
-              {r.truthTitle}{" "}
-              <em className="italic text-[color:var(--gold)]">{r.truthTitleEm}</em>
-            </h3>
-            <p
-              className="mt-4 text-[15.5px] leading-relaxed text-[#d6cdda] [&_strong]:font-semibold [&_strong]:text-[#fcf7ef]"
-              dangerouslySetInnerHTML={{ __html: r.truthBody }}
-            />
-            <div className="mt-6 rounded-xl border border-[rgba(217,197,165,0.25)] bg-white/5 px-5 py-4">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-[color:var(--gold)]">
-                {r.verseRef}
-              </p>
-              <p className="mt-2 font-display text-lg italic leading-snug text-[#fcf7ef]">
-                “{r.verseText}”
-              </p>
-            </div>
-            <p className="mt-5 whitespace-pre-line font-display text-[17px] italic leading-relaxed text-[#e6deed]">
-              {r.seal}
+            <p className="mt-1.5 font-display text-[22px] italic text-[color:var(--deep-purple)]">
+              "{r.verseText}"
+            </p>
+          </motion.div>
+          <p className="mt-4 whitespace-pre-line font-display text-[19px] italic leading-relaxed text-[color:var(--amethyst)]">
+            {r.seal}
+          </p>
+        </section>
+      </Reveal>
+
+      {/* 8. Card 2 — DESEJO / A virada (keyado pelo desire) */}
+      <Reveal className="mt-7" pop>
+        <section className="rdp-card-desire rounded-[18px] px-7 py-8 text-center sm:px-9">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]">
+            {beat.eyebrow}
+          </p>
+          <h2 className="mt-2 font-display text-[32px] font-semibold leading-[1.12] text-[color:var(--deep-purple)]">
+            {beat.title}
+          </h2>
+          <p
+            className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
+            dangerouslySetInnerHTML={{ __html: beat.body }}
+          />
+          <p
+            className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
+            dangerouslySetInnerHTML={{ __html: beat.closing }}
+          />
+        </section>
+      </Reveal>
+
+      {/* 9. Capítulos em destaque + CTA pulsante */}
+      <Reveal className="mt-8" pop>
+        <section className="rdp-madefor rounded-[20px] px-6 pb-7 pt-8">
+          <span className="rdp-madefor-badge">✦ feito pro seu padrão ✦</span>
+          <p className="mt-2 text-center text-[15px] leading-relaxed text-[color:var(--amethyst)]">
+            Dois capítulos do método foram desenhados{" "}
+            <strong className="font-semibold text-[color:var(--deep-purple)]">especificamente pra você</strong>
+            {" "}— na ordem que o seu corpo precisa:
+          </p>
+          <div className="mt-5 space-y-3">
+            {archetype.chapters.map((c, i) => (
+              <div
+                key={`${c.num}-${c.period}-${i}`}
+                className="flex gap-3 rounded-[14px] border border-[#ecdfc7] bg-white p-4 shadow-[0_10px_26px_-20px_rgba(184,146,78,.6)]"
+              >
+                <span className="shrink-0 font-display text-[28px] font-semibold text-[color:var(--gold-warm)]">
+                  {c.num}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--gold-warm)]">
+                    {c.period}
+                  </p>
+                  <p className="font-display text-[20px] font-semibold text-[color:var(--deep-purple)]">
+                    {c.title}
+                  </p>
+                  <p className="mt-1 text-[15.5px] leading-relaxed text-[color:var(--amethyst)]">
+                    {c.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA pulsante */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={onContinue}
+              className="rdp-btn-gradient-hover inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-[21px] text-[15px] font-semibold uppercase tracking-[0.14em] text-white"
+              style={{ animation: "rdp-cta-pulse 2.4s ease-in-out infinite" }}
+            >
+              <span>{beat.cta}</span>
+              <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+            </button>
+            <p className="mt-3 text-[12.5px] text-[color:var(--amethyst)]">
+              Leva 30s · sem compromisso · garantia de 7 dias
             </p>
           </div>
         </section>
       </Reveal>
 
-      {/* Toggle esperar / não esperar */}
-      <Reveal className="mt-8">
-        <div className="overflow-hidden rounded-2xl border border-[color:var(--border)] bg-white">
-          <div className="flex">
-            {(["yes", "no"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setTab(k)}
-                className={`flex-1 px-3 py-4 text-[11px] font-semibold uppercase tracking-[0.16em] transition ${
-                  tab === k
-                    ? "bg-[color:var(--milk-warm)] text-[color:var(--gold-warm)]"
-                    : "text-[color:var(--lavender)]"
-                }`}
-              >
-                {k === "yes" ? "O que esperar" : "O que não esperar"}
-              </button>
-            ))}
-          </div>
-          <motion.p
-            key={tab}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            className="px-6 py-6 text-sm leading-relaxed text-[color:var(--amethyst)]"
-          >
-            {tab === "yes" ? archetype.esperar : archetype.naoEsperar}
-          </motion.p>
-        </div>
-      </Reveal>
-
-      <GuideThread label="Já entendi meu padrão. Me mostra o caminho" emphasis />
-
-      {/* Captura opcional de email */}
-      <Reveal>
-        <div className="rounded-2xl border border-[color:var(--border)] bg-white p-6">
-          {emailSaved ? (
-            <p className="text-center text-[color:var(--amethyst)]">
-              Pronto. Enviei seu resultado pro seu email 🤍
-            </p>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (email.includes("@")) onSaveEmail();
-              }}
-            >
-              <p className="font-display text-xl text-[color:var(--deep-purple)]">
-                Quer guardar esse resultado?
-              </p>
-              <p className="text-sm text-[color:var(--amethyst)]">
-                Te envio por email. (Opcional)
-              </p>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                className="mt-3 w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none"
-                maxLength={120}
-              />
-              <button
-                type="submit"
-                disabled={!email.includes("@") || sending}
-                className={`mt-2.5 w-full rounded-full py-3.5 text-sm font-semibold transition ${
-                  email.includes("@") && !sending
-                    ? "bg-[color:var(--gold-warm)] text-white shadow-[0_6px_20px_-8px_rgba(201,168,118,0.6)] hover:brightness-105"
-                    : "cursor-not-allowed border border-[color:var(--border)] bg-[color:var(--milk-warm)] text-[color:var(--lavender)]"
-                }`}
-              >
-                {sending ? "Enviando…" : "Enviar"}
-              </button>
-            </form>
-          )}
-        </div>
-      </Reveal>
-
-      {/* CTA final (desejo) */}
-      <Reveal className="mt-8 text-center">
-        <button
-          onClick={onContinue}
-          className="rdp-btn-gold block w-full rounded-full px-6 py-5 font-semibold transition-transform hover:-translate-y-0.5"
-          style={{ boxShadow: "0 18px 40px -20px rgba(201,168,106,.8)" }}
-        >
-          {ctaLabel} →
-        </button>
-        <p className="mt-3.5 text-xs text-[color:var(--amethyst)]">
-          Leva 30s pra ver tudo. Sem compromisso.
+      {/* 10. Disclaimers (fim, discretos) */}
+      <Reveal className="rdp-fineprint">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--gold-warm)]">
+          Com honestidade, pra você decidir bem
+        </p>
+        <p className="mt-2 text-[15px] leading-relaxed text-[color:var(--amethyst)]">
+          <strong className="font-semibold text-[color:var(--deep-purple)]">O que esperar:</strong>{" "}
+          {archetype.esperar}
+        </p>
+        <p className="mt-2 text-[15px] leading-relaxed text-[color:var(--amethyst)]">
+          <strong className="font-semibold text-[color:var(--deep-purple)]">O que não esperar:</strong>{" "}
+          {archetype.naoEsperar}
         </p>
       </Reveal>
     </motion.section>
@@ -1593,7 +1522,7 @@ function OfferScreen({
         <div className="px-5 pb-6 pt-2 text-center sm:px-10">
           {quote && (
             <p className="mx-auto max-w-lg font-display text-base sm:text-lg italic text-[color:var(--amethyst)]">
-              Você lembra do seu desejo: “{quote}”
+              Você lembra do seu desejo: "{quote}"
             </p>
           )}
           <p className="mt-3 font-display text-lg sm:text-2xl text-[color:var(--deep-purple)]">
@@ -1665,4 +1594,42 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       <h4 className="font-display text-2xl text-[color:var(--deep-purple)]">{children}</h4>
     </div>
   );
+}
+
+/* ============================== ERROR BOUNDARY ============================== */
+
+class QuizErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[QuizApp] render error:", error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-dvh items-center justify-center bg-[color:var(--milk)] p-8 text-center">
+          <div>
+            <p className="font-display text-xl text-[color:var(--deep-purple)]">
+              Carregando seu resultado...
+            </p>
+            <button
+              onClick={() => this.setState({ hasError: false })}
+              className="mt-4 rounded-full bg-[color:var(--gold-warm)] px-6 py-3 text-sm font-medium text-white"
+            >
+              Continuar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }

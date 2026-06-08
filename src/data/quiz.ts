@@ -439,6 +439,55 @@ export const DESIRE_QUOTE: Record<string, string> = {
   "parar-pior": "parar de imaginar o pior o tempo todo.",
 };
 
+// ── Seção DESEJO no resultado: bloco emocional do "depois", keyado pelo desejo ──
+
+export type DesireBeat = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  closing: string;
+  cta: string;
+};
+
+export const DESIRE_BEAT: Record<string, DesireBeat> = {
+  dormir: {
+    eyebrow: "O que muda quando o alarme desliga",
+    title: "Imagine a primeira noite inteira.",
+    body: "Você deita. O corpo entende que pode soltar. E pela primeira vez em anos, você <strong>não acorda às 3h pra checar se está tudo bem</strong>. Acorda quando o sol chega — leve, inteira, descansada.",
+    closing: "<strong>Não é fé a mais que falta.</strong> É o seu corpo recebendo o sinal de que pode descansar — <strong>14 sinais em 7 dias</strong>, até o alarme aprender a desligar.",
+    cta: "Quero dormir a noite inteira",
+  },
+  descansar: {
+    eyebrow: "O que muda quando você se permite parar",
+    title: "Imagine descansar sem culpa.",
+    body: "Você senta. Não faz nada por 15 minutos. E pela primeira vez, <strong>a culpa não dispara junto</strong>. O ombro desce. A pressa solta.",
+    closing: "Descansar deixa de ser pecado e volta a ser o que sempre foi: <strong>confiar que Deus continua agindo enquanto você para</strong> — um pouco a cada dia, na ordem certa.",
+    cta: "Quero descansar sem culpa",
+  },
+  orar: {
+    eyebrow: "O que muda quando o ruído baixa",
+    title: "Imagine sentir Deus de novo.",
+    body: "Você fecha os olhos pra orar — e a mente <strong>não dispara mil pensamentos</strong>. O ruído baixa. A Palavra alcança o fundo. E aquela presença que parecia distante <strong>volta a ser sentida, não só lembrada</strong>.",
+    closing: "Não é falta de fé. É o corpo em alerta abafando o que a sua fé já tem — e dá pra silenciar esse ruído, um pouco a cada dia.",
+    cta: "Quero sentir Deus de novo",
+  },
+  "parar-pior": {
+    eyebrow: "O que muda quando o 'e se' perde a força",
+    title: "Imagine a mente quieta.",
+    body: "Algo acontece — e pela primeira vez você <strong>não roda cinco cenários catastróficos antes de respirar</strong>. O 'e se' perde a força. Você volta pro presente, que estava ali o tempo todo te esperando.",
+    closing: "Não é exagero seu. É um cérebro que aprendeu a prever perigo onde não tem — e que <strong>pode reaprender</strong>, na ordem certa.",
+    cta: "Quero a mente quieta",
+  },
+};
+
+export const DESIRE_BEAT_FALLBACK: DesireBeat = {
+  eyebrow: "O que muda quando o alarme desliga",
+  title: "Imagine a sua primeira noite de paz.",
+  body: "O corpo entende que pode soltar. A mente para de rodar. E pela primeira vez em anos, <strong>você descansa de verdade</strong>.",
+  closing: "<strong>Não é fé a mais que falta.</strong> É o seu corpo recebendo o sinal certo — <strong>14 sinais em 7 dias</strong>, na ordem certa.",
+  cta: "Quero minha paz",
+};
+
 export function computeArchetype(
   answers: Record<string, string>,
 ): { scores: Record<Archetype, number>; archetype: Archetype } {
