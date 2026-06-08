@@ -19,7 +19,7 @@ import {
 import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
-import { getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
+import { captureMetaClickData, getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import { Check, Sparkles, Volume2, VolumeX } from "lucide-react";
 import narracaoAudio from "@/assets/audio/narracao.mp3";
@@ -32,7 +32,7 @@ const KIRVANO_URL =
   (import.meta.env.VITE_KIRVANO_URL as string | undefined) ||
   "https://pay.kirvano.com/sua-oferta";
 
-type Stage = "hero" | "questions" | "loading" | "result" | "offer";
+type Stage = "hero" | "questions" | "loading" | "contact" | "result" | "offer";
 
 // Detecta se alguma resposta marcou risco (P2: "pensamentos sombrios" / "estou em crise").
 function answersHaveRisk(ans: Record<string, string>): boolean {
@@ -64,9 +64,11 @@ function parsePreview(): {
 // Persistência de sessão: refresh em result/offer não joga a lead pro início.
 const SAVED_KEY = "sacra_quiz_state_v1";
 type SavedState = {
-  stage: "result" | "offer";
+  stage: "contact" | "result" | "offer";
   answers: Record<string, string>;
   name: string;
+  whatsapp: string;
+  email: string;
 };
 function loadSavedState(): SavedState | null {
   if (typeof window === "undefined") return null;
@@ -75,11 +77,17 @@ function loadSavedState(): SavedState | null {
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (
-      (s?.stage === "result" || s?.stage === "offer") &&
+      (s?.stage === "contact" || s?.stage === "result" || s?.stage === "offer") &&
       s?.answers &&
       typeof s.answers === "object"
     ) {
-      return { stage: s.stage, answers: s.answers, name: typeof s.name === "string" ? s.name : "" };
+      return {
+        stage: s.stage,
+        answers: s.answers,
+        name: typeof s.name === "string" ? s.name : "",
+        whatsapp: typeof s.whatsapp === "string" ? s.whatsapp : "",
+        email: typeof s.email === "string" ? s.email : "",
+      };
     }
     return null;
   } catch {
@@ -105,13 +113,15 @@ export function QuizApp() {
   const [answers, setAnswers] = useState<Record<string, string>>(saved?.answers ?? {});
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [encouragement, setEncouragement] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState(saved?.whatsapp ?? "");
+  const [email, setEmail] = useState(saved?.email ?? "");
   const [emailSaved, setEmailSaved] = useState(false);
   const [sending, setSending] = useState(false);
   const startTsRef = useRef<number>(Date.now());
 
   useEffect(() => {
     captureUtms();
+    captureMetaClickData();
   }, []);
 
   // Ao trocar de tela, volta pro topo (senão a oferta abre na altura em que estava o resultado).
@@ -122,14 +132,14 @@ export function QuizApp() {
   // Persiste só em result/offer (nunca durante o quiz). Atualiza ao navegar entre elas.
   useEffect(() => {
     if (preview) return; // preview de dev não persiste
-    if (stage !== "result" && stage !== "offer") return;
+    if (stage !== "contact" && stage !== "result" && stage !== "offer") return;
     try {
-      sessionStorage.setItem(SAVED_KEY, JSON.stringify({ stage, answers, name }));
+      sessionStorage.setItem(SAVED_KEY, JSON.stringify({ stage, answers, name, whatsapp, email }));
     } catch {
       // armazenamento indisponível → ignora, não quebra
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, answers, name]);
+  }, [stage, answers, name, whatsapp, email]);
 
   const result = useMemo(() => {
     if (stage !== "result" && stage !== "offer") return null;
@@ -206,17 +216,9 @@ export function QuizApp() {
     for (let i = 1; i < messages; i++) {
       timers.push(window.setTimeout(() => setLoadingMsg(i), step * i));
     }
-    timers.push(window.setTimeout(() => setStage("result"), step * messages));
-    // persiste lead no Supabase (best effort) + dispara Lead no pixel
-    void persistLead(answers).then(() => {
-      try {
-        const fbq = (window as any).fbq;
-        if (fbq) {
-          const eid = getOrCreateExternalId();
-          fbq("track", "Lead", { content_name: "Rotina de Paz", value: 0, currency: "BRL" }, { eventID: `lead_${eid}` });
-        }
-      } catch {}
-    }).catch(() => {});
+    timers.push(window.setTimeout(() => setStage("contact"), step * messages));
+    // Persiste lead no Supabase (best effort). Lead event disparado na captura de contato.
+    void persistLead(answers).catch(() => {});
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
@@ -325,6 +327,60 @@ export function QuizApp() {
     setStage("offer");
   }
 
+  async function submitContact() {
+    setSending(true);
+    try {
+      // Salva contato no lead existente
+      const sb = getSupabase();
+      if (sb) {
+        try {
+          const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
+          if (stored.lead_id) {
+            const digits = whatsapp.replace(/\D/g, "");
+            const { error } = await sb.rpc("save_lead_contact", {
+              p_lead_id: stored.lead_id,
+              p_email: email || null,
+              p_whatsapp: digits ? `55${digits}` : null,
+              p_consent_timestamp: new Date().toISOString(),
+            });
+            if (error) console.error("[save_lead_contact] falhou:", error.message);
+          }
+        } catch (e) {
+          console.error("[save_lead_contact] erro:", e);
+        }
+      }
+
+      // Advanced Matching + Lead event (dispara aqui, não no loading)
+      try {
+        const fbq = (window as any).fbq;
+        if (fbq) {
+          const eid = getOrCreateExternalId();
+          const digits = whatsapp.replace(/\D/g, "");
+          const ph = digits.length >= 10 ? `55${digits}` : undefined;
+          const PIXEL = "838169472100225";
+          // Atualiza Advanced Matching (em/ph) — não re-dispara PageView,
+          // apenas seta user data para eventos subsequentes. O pixel SDK
+          // faz SHA-256 automaticamente (não pré-hashear).
+          fbq("init", PIXEL, {
+            ...(email ? { em: email.toLowerCase().trim() } : {}),
+            ...(ph ? { ph } : {}),
+            external_id: eid,
+          });
+          // trackSingle evita que o evento vá para outros pixels na página
+          fbq("trackSingle", PIXEL, "Lead", {
+            content_name: "Rotina de Paz",
+            value: 0,
+            currency: "BRL",
+          }, { eventID: `lead_${eid}` });
+        }
+      } catch {}
+
+      setStage("result");
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function checkout() {
     if (!archetype) return;
     const externalId = getOrCreateExternalId();
@@ -332,7 +388,8 @@ export function QuizApp() {
     void saveTrackingSession(externalId).catch(() => {});
     // InitiateCheckout com tick de espera para o beacon sair antes do redirect
     await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz", value: 47 });
-    const url = buildKirvanoUrl(KIRVANO_URL, { archetype, name, email, externalId });
+    const whatsappNorm = whatsapp ? `55${whatsapp.replace(/\D/g, "")}` : undefined;
+    const url = buildKirvanoUrl(KIRVANO_URL, { archetype, name, email, whatsapp: whatsappNorm, externalId });
     window.location.href = url;
   }
 
@@ -366,6 +423,19 @@ export function QuizApp() {
 
         {stage === "loading" && (
           <LoadingScreen key="loading" step={loadingMsg} />
+        )}
+
+        {stage === "contact" && (
+          <ContactGateScreen
+            key="contact"
+            name={name}
+            whatsapp={whatsapp}
+            setWhatsapp={setWhatsapp}
+            email={email}
+            setEmail={setEmail}
+            onSubmit={submitContact}
+            sending={sending}
+          />
         )}
 
         {stage === "result" && arche && (
@@ -701,6 +771,118 @@ function LoadingScreen({ step }: { step: number }) {
 function AmbientParticles({ active }: { active: boolean }) {
   if (!active) return null;
   return null;
+}
+
+/* ============================== CONTACT GATE ============================== */
+
+function formatPhoneBR(raw: string): string {
+  const d = raw.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function ContactGateScreen({
+  name,
+  whatsapp,
+  setWhatsapp,
+  email,
+  setEmail,
+  onSubmit,
+  sending,
+}: {
+  name: string;
+  whatsapp: string;
+  setWhatsapp: (s: string) => void;
+  email: string;
+  setEmail: (s: string) => void;
+  onSubmit: () => void;
+  sending: boolean;
+}) {
+  const digits = whatsapp.replace(/\D/g, "");
+  const validPhone = digits.length >= 10 && digits.length <= 11;
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.6 }}
+      className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-5 py-10"
+    >
+      <div className="flex w-full items-start gap-3 sm:gap-5">
+        <GuideAvatar size="corner" />
+        <div className="flex-1 pt-1">
+          <SpeechBubble
+            text={`Seu resultado está pronto${name ? `, ${name}` : ""}. Pra onde envio?`}
+            typingDelay={300}
+          />
+        </div>
+      </div>
+
+      <div className="mt-8 w-full rounded-2xl border border-[color:var(--border)] bg-white p-6">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (validPhone && !sending) onSubmit();
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label htmlFor="gate-whatsapp" className="block text-sm font-medium text-[color:var(--deep-purple)]">
+              WhatsApp
+            </label>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="shrink-0 rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-3 py-3.5 text-sm text-[color:var(--amethyst)]">
+                +55
+              </span>
+              <input
+                id="gate-whatsapp"
+                type="tel"
+                inputMode="numeric"
+                value={formatPhoneBR(whatsapp)}
+                onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                placeholder="(00) 00000-0000"
+                className="w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
+                required
+                maxLength={16}
+                autoComplete="tel-national"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="gate-email" className="block text-sm font-medium text-[color:var(--deep-purple)]">
+              Email <span className="font-normal text-[color:var(--amethyst)]">(opcional)</span>
+            </label>
+            <input
+              id="gate-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              className="mt-1.5 w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
+              maxLength={120}
+              autoComplete="email"
+            />
+          </div>
+
+          <p className="text-xs leading-relaxed text-[color:var(--amethyst)]">
+            Ao continuar, você concorda em receber mensagens sobre o seu resultado.
+          </p>
+
+          <button
+            type="submit"
+            disabled={!validPhone || sending}
+            className="rdp-btn-gradient-hover group inline-flex w-full items-center justify-center gap-3 rounded-full px-10 py-4 text-sm font-medium uppercase tracking-[0.22em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] disabled:opacity-50 disabled:hover:translate-y-0"
+          >
+            {sending ? "Enviando…" : "Ver meu resultado"}{" "}
+            <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
+          </button>
+        </form>
+      </div>
+    </motion.section>
+  );
 }
 
 /* ============================== RESULT ============================== */

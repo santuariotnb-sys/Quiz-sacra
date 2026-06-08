@@ -34,6 +34,58 @@ export function readFbCookies(): { fbp: string | null; fbc: string | null } {
   }
 }
 
+// ── Meta Click Data (fbclid / _fbc / _fbp) ──────────────────────
+// Capturado uma vez na entrada do quiz e persistido em sessionStorage
+// para sobreviver entre passos do SPA e o redirect pro checkout.
+
+const META_CLICK_KEY = "rdp_meta_click";
+
+type MetaClickData = {
+  fbclid: string | null;
+  fbc: string | null;
+  fbp: string | null;
+};
+
+/**
+ * Captura fbclid da URL + cookies _fbc/_fbp e persiste em sessionStorage.
+ * Se _fbc não existir mas fbclid sim, constrói no formato oficial Meta:
+ *   fb.1.<timestamp_ms>.<fbclid>
+ * Chamada uma vez na entrada do quiz.
+ */
+export function captureMetaClickData(): MetaClickData {
+  try {
+    const stored = sessionStorage.getItem(META_CLICK_KEY);
+    if (stored) return JSON.parse(stored) as MetaClickData;
+  } catch {}
+
+  const params = new URLSearchParams(window.location.search);
+  const fbclid = params.get("fbclid") || null;
+  const { fbp, fbc: cookieFbc } = readFbCookies();
+
+  // Constrói _fbc se o cookie não existir mas o fbclid sim
+  let fbc = cookieFbc;
+  if (!fbc && fbclid) {
+    fbc = `fb.1.${Date.now()}.${fbclid}`;
+  }
+
+  const data: MetaClickData = { fbclid, fbc, fbp };
+  try {
+    sessionStorage.setItem(META_CLICK_KEY, JSON.stringify(data));
+  } catch {}
+  return data;
+}
+
+/**
+ * Retorna dados Meta Click da sessão. Nunca inventa valores.
+ */
+export function getMetaClickData(): MetaClickData {
+  try {
+    const stored = sessionStorage.getItem(META_CLICK_KEY);
+    if (stored) return JSON.parse(stored) as MetaClickData;
+  } catch {}
+  return { fbclid: null, fbc: null, fbp: null };
+}
+
 /**
  * Salva tracking session no Supabase (anon insert).
  * Fire-and-forget: nunca bloqueia o fluxo principal.
@@ -42,8 +94,7 @@ export async function saveTrackingSession(externalId: string): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
 
-  const { fbp, fbc } = readFbCookies();
-  const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+  const { fbp, fbc, fbclid } = getMetaClickData();
   const userAgent = navigator.userAgent;
 
   const { error } = await sb.rpc("upsert_tracking_session", {

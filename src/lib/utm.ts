@@ -1,3 +1,5 @@
+import { getMetaClickData } from "./tracking";
+
 const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "gclid"] as const;
 export type UtmParams = Partial<Record<(typeof UTM_KEYS)[number], string>>;
 
@@ -26,17 +28,27 @@ export function captureUtms(): UtmParams {
 
 export function buildKirvanoUrl(
   baseUrl: string,
-  extras: { archetype?: string; name?: string; email?: string; externalId?: string } = {},
+  extras: { archetype?: string; name?: string; email?: string; whatsapp?: string; externalId?: string } = {},
 ): string {
   try {
     const url = new URL(baseUrl);
     const utms = captureUtms();
+
+    // Passa UTMs exceto fbclid (tratado separadamente via meta click data)
     for (const [k, v] of Object.entries(utms)) {
-      if (v) url.searchParams.set(k, v);
+      if (v && k !== "fbclid") url.searchParams.set(k, v);
     }
+
+    // fbclid/fbc/fbp REAIS da sessão — nunca placeholder
+    const { fbclid, fbc, fbp } = getMetaClickData();
+    if (fbclid) url.searchParams.set("fbclid", fbclid);
+    if (fbc) url.searchParams.set("fbc", fbc);
+    if (fbp) url.searchParams.set("fbp", fbp);
+
     if (extras.archetype) url.searchParams.set("arquetipo", extras.archetype);
     if (extras.name) url.searchParams.set("nome", extras.name);
     if (extras.email) url.searchParams.set("email", extras.email);
+    if (extras.whatsapp) url.searchParams.set("whatsapp", extras.whatsapp);
     // external_id viaja como "src" — Kirvano devolve em utm.src no webhook
     if (extras.externalId) url.searchParams.set("src", extras.externalId);
     return url.toString();
