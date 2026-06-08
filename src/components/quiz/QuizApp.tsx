@@ -81,11 +81,15 @@ function loadSavedState(): SavedState | null {
       s?.answers &&
       typeof s.answers === "object"
     ) {
+      const wpp = typeof s.whatsapp === "string" ? s.whatsapp : "";
       return {
-        stage: s.stage,
+        // Sessão antiga (pré-contact-gate) ou sem whatsapp: força para "contact"
+        stage: (s.stage === "result" || s.stage === "offer") && !wpp
+          ? "contact"
+          : s.stage,
         answers: s.answers,
         name: typeof s.name === "string" ? s.name : "",
-        whatsapp: typeof s.whatsapp === "string" ? s.whatsapp : "",
+        whatsapp: wpp,
         email: typeof s.email === "string" ? s.email : "",
       };
     }
@@ -128,6 +132,13 @@ export function QuizApp() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [stage]);
+
+  // Guard: resultado/oferta sem WhatsApp → força contact gate (previne bypass)
+  useEffect(() => {
+    if ((stage === "result" || stage === "offer") && !whatsapp && !preview) {
+      setStage("contact");
+    }
+  }, [stage, whatsapp, preview]);
 
   // Persiste só em result/offer (nunca durante o quiz). Atualiza ao navegar entre elas.
   useEffect(() => {
