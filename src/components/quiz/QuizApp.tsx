@@ -446,11 +446,10 @@ export function QuizApp() {
           <ContactGateScreen
             key="contact"
             name={name}
-            whatsapp={whatsapp}
-            setWhatsapp={setWhatsapp}
             email={email}
             setEmail={setEmail}
             onSubmit={submitContact}
+            onSkip={() => setStage("result")}
             sending={sending}
           />
         )}
@@ -788,30 +787,36 @@ function AmbientParticles({ active }: { active: boolean }) {
 
 /* ============================== CONTACT GATE ============================== */
 
-function formatPhoneBR(raw: string): string {
-  const d = raw.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 2) return d;
-  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
+// WhatsApp: UI removida (so armazenamento). Religar: SHOW_WHATSAPP = true
+const SHOW_WHATSAPP = false;
 
 function ContactGateScreen({
   name,
-  whatsapp,
-  setWhatsapp,
   email,
   setEmail,
   onSubmit,
+  onSkip,
   sending,
 }: {
   name: string;
-  whatsapp: string;
-  setWhatsapp: (s: string) => void;
   email: string;
   setEmail: (s: string) => void;
   onSubmit: () => void;
+  onSkip: () => void;
   sending: boolean;
 }) {
+  const [hint, setHint] = useState(false);
+  const validEmail = email.includes("@") && email.includes(".");
+
+  const handleSubmit = () => {
+    if (!validEmail) {
+      setHint(true);
+      return;
+    }
+    setHint(false);
+    onSubmit();
+  };
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
@@ -820,6 +825,7 @@ function ContactGateScreen({
       transition={{ duration: 0.6 }}
       className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-5 py-10"
     >
+      {/* Avatar + balao */}
       <div className="flex w-full items-start gap-3 sm:gap-5">
         <GuideAvatar size="corner" />
         <div className="flex-1 pt-1">
@@ -830,68 +836,67 @@ function ContactGateScreen({
         </div>
       </div>
 
-      <div className="mt-8 w-full rounded-2xl border border-[color:var(--border)] bg-white p-6">
+      {/* Card conversacional */}
+      <motion.div
+        className="mt-8 w-full rounded-2xl border border-[color:var(--border)] bg-white p-6"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.6, ease: [0.2, 0.7, 0.2, 1] }}
+      >
+        <p className="font-display text-xl leading-snug text-[color:var(--deep-purple)]">
+          Quer que eu te mande sua leitura completa pra guardar?
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-[color:var(--amethyst)]">
+          Pra reler quando a ansiedade apertar — sem spam, só o seu resultado e o caminho do seu padrão.
+        </p>
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!sending) onSubmit();
+            if (!sending) handleSubmit();
           }}
-          className="space-y-4"
+          className="mt-5"
         >
-          <p className="font-display text-lg text-[color:var(--deep-purple)]">
-            Quer receber sua leitura completa por email?
-          </p>
-          <p className="text-sm text-[color:var(--amethyst)]">
-            Opcional — você verá o resultado de qualquer forma.
-          </p>
-
           <input
             id="gate-email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setHint(false); }}
             placeholder="seu@email.com"
-            className="w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
+            className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
+              hint ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
+            }`}
             maxLength={120}
             autoComplete="email"
+            autoFocus
           />
+          {hint && (
+            <p className="mt-1.5 text-xs text-red-400">
+              Digite um email válido pra eu enviar.
+            </p>
+          )}
 
-          <div>
-            <label htmlFor="gate-whatsapp" className="block text-sm text-[color:var(--amethyst)]">
-              WhatsApp <span className="text-[color:var(--lavender)]">(opcional)</span>
-            </label>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="shrink-0 rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-3 py-3.5 text-sm text-[color:var(--amethyst)]">
-                +55
-              </span>
-              <input
-                id="gate-whatsapp"
-                type="tel"
-                inputMode="numeric"
-                value={formatPhoneBR(whatsapp)}
-                onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                placeholder="(00) 00000-0000"
-                className="w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
-                maxLength={16}
-                autoComplete="tel-national"
-              />
-            </div>
-          </div>
-
-          <p className="text-xs leading-relaxed text-[color:var(--amethyst)]">
-            Ao informar, você concorda em receber mensagens sobre o seu resultado.
-          </p>
-
+          {/* CTA principal */}
           <button
             type="submit"
             disabled={sending}
-            className="rdp-btn-gradient-hover group inline-flex w-full items-center justify-center gap-3 rounded-full px-10 py-4 text-sm font-medium uppercase tracking-[0.22em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] disabled:opacity-50"
+            className="rdp-btn-gradient-hover mt-4 inline-flex w-full items-center justify-center gap-2.5 rounded-full px-10 py-4 text-sm font-medium uppercase tracking-[0.18em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] disabled:opacity-50"
           >
-            {sending ? "Enviando…" : "Ver meu resultado"}{" "}
+            {sending ? "Enviando…" : "Quero receber e ver"}{" "}
             <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
           </button>
         </form>
-      </div>
+
+        {/* Micro-CTA: pular */}
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={sending}
+          className="mt-4 w-full text-center text-[13px] text-[color:var(--amethyst)] transition-colors hover:text-[color:var(--deep-purple)] disabled:opacity-50"
+        >
+          Só ver na tela
+        </button>
+      </motion.div>
     </motion.section>
   );
 }
