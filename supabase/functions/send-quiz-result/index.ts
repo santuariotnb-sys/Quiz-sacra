@@ -15,7 +15,7 @@ function getCorsOrigin(req: Request): string {
 function corsHeaders(req: Request): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": getCorsOrigin(req),
-    "Access-Control-Allow-Headers": "authorization, content-type, apikey",
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-supabase-api-version, x-application-name",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 }
