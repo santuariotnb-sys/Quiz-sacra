@@ -136,7 +136,7 @@ function buildHtml(d: Body) {
     <!-- PREÇO -->
     <table role="presentation" style="width:100%;background:${C.milkWarm};border:1px solid ${C.lavender}55;border-radius:16px;margin:0 0 24px"><tr><td style="padding:26px 20px;text-align:center">
       <p style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:${C.goldWarm};margin:0 0 8px">● Oferta especial desta página</p>
-      <p style="font-size:15px;color:${C.amethyst};margin:0;text-decoration:line-through">De R$ 129,00</p>
+      <p style="font-size:15px;color:${C.amethyst};margin:0;text-decoration:line-through">De R$ 197,00</p>
       <p style="margin:4px 0 0;color:${C.deep}"><span style="font-size:24px;vertical-align:top">R$</span> <span style="font-size:60px;font-style:italic;color:${C.goldWarm};line-height:1">47</span></p>
       <p style="font-size:15px;margin:6px 0 0;color:${C.deep}">à vista <span style="color:${C.amethyst}">ou</span> <strong>10× de R$ 5,60</strong></p>
       <p style="font-size:13px;font-style:italic;color:${C.amethyst};margin:10px 0 0">Pagamento único · Acesso permanente · Sem mensalidade</p>

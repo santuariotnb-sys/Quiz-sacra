@@ -62,7 +62,7 @@ function parsePreview(): {
 }
 
 // Persistência de sessão: refresh em result/offer não joga a lead pro início.
-const SAVED_KEY = "sacra_quiz_state_v1";
+const SAVED_KEY = "sacra_quiz_state_v2";
 type SavedState = {
   stage: "contact" | "result" | "offer";
   answers: Record<string, string>;
@@ -81,15 +81,11 @@ function loadSavedState(): SavedState | null {
       s?.answers &&
       typeof s.answers === "object"
     ) {
-      const wpp = typeof s.whatsapp === "string" ? s.whatsapp : "";
       return {
-        // Sessão antiga (pré-contact-gate) ou sem whatsapp: força para "contact"
-        stage: (s.stage === "result" || s.stage === "offer") && !wpp
-          ? "contact"
-          : s.stage,
+        stage: s.stage,
         answers: s.answers,
         name: typeof s.name === "string" ? s.name : "",
-        whatsapp: wpp,
+        whatsapp: typeof s.whatsapp === "string" ? s.whatsapp : "",
         email: typeof s.email === "string" ? s.email : "",
       };
     }
@@ -133,14 +129,7 @@ export function QuizApp() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [stage]);
 
-  // Guard: resultado/oferta sem WhatsApp → força contact gate (previne bypass)
-  useEffect(() => {
-    if ((stage === "result" || stage === "offer") && !whatsapp && !preview) {
-      setStage("contact");
-    }
-  }, [stage, whatsapp, preview]);
-
-  // Persiste só em result/offer (nunca durante o quiz). Atualiza ao navegar entre elas.
+  // Persiste só em contact/result/offer (nunca durante o quiz). Atualiza ao navegar entre elas.
   useEffect(() => {
     if (preview) return; // preview de dev não persiste
     if (stage !== "contact" && stage !== "result" && stage !== "offer") return;
@@ -153,7 +142,7 @@ export function QuizApp() {
   }, [stage, answers, name, whatsapp, email]);
 
   const result = useMemo(() => {
-    if (stage !== "result" && stage !== "offer") return null;
+    if (stage !== "contact" && stage !== "result" && stage !== "offer") return null;
     return computeArchetype(answers);
   }, [stage, answers]);
 
@@ -339,45 +328,76 @@ export function QuizApp() {
   }
 
   async function submitContact() {
+    const hasEmail = !!(email && email.includes("@"));
+    const digits = whatsapp.replace(/\D/g, "");
+    const hasWhatsapp = digits.length >= 10;
+    const hasContact = hasEmail || hasWhatsapp;
+
+    // Sem contato → vai direto pro resultado, sem Lead, sem erro
+    if (!hasContact) {
+      setStage("result");
+      return;
+    }
+
     setSending(true);
     try {
-      // Salva contato no lead existente
       const sb = getSupabase();
       if (sb) {
+        // Salva contato no lead existente
         try {
           const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
           if (stored.lead_id) {
-            const digits = whatsapp.replace(/\D/g, "");
-            const { error } = await sb.rpc("save_lead_contact", {
+            await sb.rpc("save_lead_contact", {
               p_lead_id: stored.lead_id,
-              p_email: email || null,
-              p_whatsapp: digits ? `55${digits}` : null,
+              p_email: hasEmail ? email : null,
+              p_whatsapp: hasWhatsapp ? `55${digits}` : null,
               p_consent_timestamp: new Date().toISOString(),
             });
-            if (error) console.error("[save_lead_contact] falhou:", error.message);
           }
         } catch (e) {
           console.error("[save_lead_contact] erro:", e);
         }
+
+        // Envia resultado por email (mesma edge function do ResultScreen)
+        if (hasEmail && arche) {
+          void sb.functions
+            .invoke("send-quiz-result", {
+              body: {
+                email,
+                name: name || null,
+                archetypeName: arche.name,
+                tagline: arche.result.tagline,
+                bridge,
+                happening: arche.result.happening,
+                mirror: arche.result.mirror,
+                truthTitle: arche.result.truthTitle,
+                truthTitleEm: arche.result.truthTitleEm,
+                truthBody: arche.result.truthBody,
+                verseRef: arche.result.verseRef,
+                verseText: arche.result.verseText,
+                seal: arche.result.seal,
+                chapters: arche.chapters,
+                ctaLabel: (desire && DESIRE_CTA[desire]) || "Eu creio — quero minha paz",
+                quote: (desire && DESIRE_QUOTE[desire]) || null,
+              },
+            })
+            .catch((err) => console.error("[send-quiz-result] falhou:", err));
+          setEmailSaved(true);
+        }
       }
 
-      // Advanced Matching + Lead event (dispara aqui, não no loading)
+      // Advanced Matching + Lead event (só se tem contato)
       try {
         const fbq = (window as any).fbq;
         if (fbq) {
           const eid = getOrCreateExternalId();
-          const digits = whatsapp.replace(/\D/g, "");
-          const ph = digits.length >= 10 ? `55${digits}` : undefined;
+          const ph = hasWhatsapp ? `55${digits}` : undefined;
           const PIXEL = "838169472100225";
-          // Atualiza Advanced Matching (em/ph) — não re-dispara PageView,
-          // apenas seta user data para eventos subsequentes. O pixel SDK
-          // faz SHA-256 automaticamente (não pré-hashear).
           fbq("init", PIXEL, {
-            ...(email ? { em: email.toLowerCase().trim() } : {}),
+            ...(hasEmail ? { em: email.toLowerCase().trim() } : {}),
             ...(ph ? { ph } : {}),
             external_id: eid,
           });
-          // trackSingle evita que o evento vá para outros pixels na página
           fbq("trackSingle", PIXEL, "Lead", {
             content_name: "Rotina de Paz",
             value: 0,
@@ -385,11 +405,11 @@ export function QuizApp() {
           }, { eventID: `lead_${eid}` });
         }
       } catch {}
-
-      setStage("result");
     } finally {
       setSending(false);
     }
+
+    setStage("result");
   }
 
   async function checkout() {
@@ -810,9 +830,6 @@ function ContactGateScreen({
   onSubmit: () => void;
   sending: boolean;
 }) {
-  const digits = whatsapp.replace(/\D/g, "");
-  const validPhone = digits.length >= 10 && digits.length <= 11;
-
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
@@ -825,7 +842,7 @@ function ContactGateScreen({
         <GuideAvatar size="corner" />
         <div className="flex-1 pt-1">
           <SpeechBubble
-            text={`Seu resultado está pronto${name ? `, ${name}` : ""}. Pra onde envio?`}
+            text={`Seu resultado está pronto${name ? `, ${name}` : ""}.`}
             typingDelay={300}
           />
         </div>
@@ -835,13 +852,31 @@ function ContactGateScreen({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (validPhone && !sending) onSubmit();
+            if (!sending) onSubmit();
           }}
           className="space-y-4"
         >
+          <p className="font-display text-lg text-[color:var(--deep-purple)]">
+            Quer receber sua leitura completa por email?
+          </p>
+          <p className="text-sm text-[color:var(--amethyst)]">
+            Opcional — você verá o resultado de qualquer forma.
+          </p>
+
+          <input
+            id="gate-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="seu@email.com"
+            className="w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
+            maxLength={120}
+            autoComplete="email"
+          />
+
           <div>
-            <label htmlFor="gate-whatsapp" className="block text-sm font-medium text-[color:var(--deep-purple)]">
-              WhatsApp
+            <label htmlFor="gate-whatsapp" className="block text-sm text-[color:var(--amethyst)]">
+              WhatsApp <span className="text-[color:var(--lavender)]">(opcional)</span>
             </label>
             <div className="mt-1.5 flex items-center gap-2">
               <span className="shrink-0 rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-3 py-3.5 text-sm text-[color:var(--amethyst)]">
@@ -855,37 +890,20 @@ function ContactGateScreen({
                 onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 11))}
                 placeholder="(00) 00000-0000"
                 className="w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
-                required
                 maxLength={16}
                 autoComplete="tel-national"
               />
             </div>
           </div>
 
-          <div>
-            <label htmlFor="gate-email" className="block text-sm font-medium text-[color:var(--deep-purple)]">
-              Email <span className="font-normal text-[color:var(--amethyst)]">(opcional)</span>
-            </label>
-            <input
-              id="gate-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              className="mt-1.5 w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
-              maxLength={120}
-              autoComplete="email"
-            />
-          </div>
-
           <p className="text-xs leading-relaxed text-[color:var(--amethyst)]">
-            Ao continuar, você concorda em receber mensagens sobre o seu resultado.
+            Ao informar, você concorda em receber mensagens sobre o seu resultado.
           </p>
 
           <button
             type="submit"
-            disabled={!validPhone || sending}
-            className="rdp-btn-gradient-hover group inline-flex w-full items-center justify-center gap-3 rounded-full px-10 py-4 text-sm font-medium uppercase tracking-[0.22em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] disabled:opacity-50 disabled:hover:translate-y-0"
+            disabled={sending}
+            className="rdp-btn-gradient-hover group inline-flex w-full items-center justify-center gap-3 rounded-full px-10 py-4 text-sm font-medium uppercase tracking-[0.22em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] disabled:opacity-50"
           >
             {sending ? "Enviando…" : "Ver meu resultado"}{" "}
             <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
@@ -1554,7 +1572,7 @@ function OfferScreen({
             </span>
             Oferta especial desta página
           </div>
-          <p className="text-sm sm:text-base text-[color:var(--amethyst)] line-through">De R$ 129,00</p>
+          <p className="text-sm sm:text-base text-[color:var(--amethyst)] line-through">De R$ 197,00</p>
           <p className="mt-2 font-display text-[color:var(--deep-purple)]">
             <span className="text-2xl sm:text-3xl align-top">R$</span>{" "}
             <span className="font-display text-[64px] sm:text-7xl leading-none italic text-[color:var(--gold-warm)]">47</span>
