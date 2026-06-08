@@ -344,6 +344,7 @@ export function QuizApp() {
               body: {
                 email,
                 name: name || null,
+                desire: desire || null,
                 archetypeName: arche.name,
                 tagline: arche.result.tagline,
                 bridge,
