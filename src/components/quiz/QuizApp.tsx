@@ -123,6 +123,8 @@ export function QuizApp() {
   const [email, setEmail] = useState(saved?.email ?? "");
   const [sending, setSending] = useState(false);
   const startTsRef = useRef<number>(Date.now());
+  // Promise da criação do lead — submitContact faz await antes de salvar email
+  const leadPromiseRef = useRef<Promise<string | null>>(Promise.resolve(null));
 
   useEffect(() => {
     captureUtms();
@@ -241,14 +243,15 @@ export function QuizApp() {
       setStage("contact");
     }, step * messages));
     // Persiste lead no Supabase (best effort). Lead event disparado na captura de contato.
-    void persistLead(answers).catch(() => {});
+    // A promise é guardada em leadPromiseRef para o submitContact fazer await.
+    leadPromiseRef.current = persistLead(answers).catch(() => null);
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
-  async function persistLead(ans: Record<string, string>) {
+  async function persistLead(ans: Record<string, string>): Promise<string | null> {
     const sb = getSupabase();
-    if (!sb) return;
+    if (!sb) return null;
     const { scores, archetype } = computeArchetype(ans);
     const utms = captureUtms();
     const { data: leadId, error } = await sb.rpc("persist_lead", {
@@ -264,7 +267,7 @@ export function QuizApp() {
     });
     if (error || !leadId) {
       if (error) console.error("[persist_lead] falhou:", error.message, error.code);
-      return;
+      return null;
     }
     // Persiste arquétipo localmente para o App da Aluna (Parte 2)
     try {
@@ -280,15 +283,22 @@ export function QuizApp() {
         }),
       );
     } catch {}
-    const totalTime = Date.now() - startTsRef.current;
-    const rows = QUESTIONS.map((q) => ({
-      lead_id: leadId,
-      question_key: q.key,
-      answer_value: ans[q.key] ?? "",
-      answer_text: q.options.find((o) => o.value === ans[q.key])?.label ?? "",
-      time_to_answer: Math.round(totalTime / QUESTIONS.length),
-    }));
-    await sb.rpc("persist_quiz_responses", { p_rows: rows });
+    // #1: persist_quiz_responses com error handling (não bloqueia navegação)
+    try {
+      const totalTime = Date.now() - startTsRef.current;
+      const rows = QUESTIONS.map((q) => ({
+        lead_id: leadId,
+        question_key: q.key,
+        answer_value: ans[q.key] ?? "",
+        answer_text: q.options.find((o) => o.value === ans[q.key])?.label ?? "",
+        time_to_answer: Math.round(totalTime / QUESTIONS.length),
+      }));
+      const { error: rpcErr } = await sb.rpc("persist_quiz_responses", { p_rows: rows });
+      if (rpcErr) console.error("[persist_quiz_responses] falhou:", rpcErr.message, rpcErr.code);
+    } catch (e) {
+      console.error("[persist_quiz_responses] erro:", e);
+    }
+    return leadId;
   }
 
   function goToOffer() {
@@ -301,7 +311,7 @@ export function QuizApp() {
     const hasWhatsapp = digits.length >= 10;
     const hasContact = hasEmail || hasWhatsapp;
 
-    // Sem contato → vai direto pro resultado, sem Lead, sem erro
+    // Sem contato -> vai direto pro resultado, sem Lead, sem erro
     if (!hasContact) {
       setStage("result");
       return;
@@ -309,27 +319,28 @@ export function QuizApp() {
 
     setSending(true);
     try {
+      // #2: Aguarda a promise do persistLead (garante lead_id antes de salvar email)
+      const leadId = await leadPromiseRef.current;
+
       const sb = getSupabase();
-      if (sb) {
-        // Salva contato no lead existente
+      if (sb && leadId) {
+        // Salva contato no lead (caminho unico, sempre passa email+whatsapp)
         try {
-          const stored = JSON.parse(localStorage.getItem("sacra_student") ?? "{}");
-          if (stored.lead_id) {
-            await sb.rpc("save_lead_contact", {
-              p_lead_id: stored.lead_id,
-              p_email: hasEmail ? email : null,
-              p_whatsapp: hasWhatsapp ? `55${digits}` : null,
-              p_consent_timestamp: new Date().toISOString(),
-            });
-          }
+          const { error } = await sb.rpc("save_lead_contact", {
+            p_lead_id: leadId,
+            p_email: hasEmail ? email : null,
+            p_whatsapp: hasWhatsapp ? `55${digits}` : null,
+            p_consent_timestamp: new Date().toISOString(),
+          });
+          if (error) console.error("[save_lead_contact] falhou:", error.message);
         } catch (e) {
           console.error("[save_lead_contact] erro:", e);
         }
 
-        // Envia resultado por email (mesma edge function do ResultScreen)
+        // Envia resultado por email via edge function (Resend)
         if (hasEmail && arche) {
-          void sb.functions
-            .invoke("send-quiz-result", {
+          try {
+            const { error: fnErr } = await sb.functions.invoke("send-quiz-result", {
               body: {
                 email,
                 name: name || null,
@@ -345,15 +356,21 @@ export function QuizApp() {
                 verseText: arche.result.verseText,
                 seal: arche.result.seal,
                 chapters: arche.chapters,
-                ctaLabel: (desire && DESIRE_CTA[desire]) || "Eu creio — quero minha paz",
+                ctaLabel: (desire && DESIRE_CTA[desire]) || "Eu creio -- quero minha paz",
                 quote: (desire && DESIRE_QUOTE[desire]) || null,
               },
-            })
-            .catch((err) => console.error("[send-quiz-result] falhou:", err));
+            });
+            if (fnErr) console.error("[send-quiz-result] edge function erro:", fnErr);
+          } catch (err) {
+            console.error("[send-quiz-result] falhou:", err);
+          }
         }
+      } else if (!leadId) {
+        // Lead nao resolveu a tempo — loga mas nao bloqueia
+        console.error("[submitContact] lead_id indisponivel, contato nao salvo");
       }
 
-      // Advanced Matching + Lead event (só se tem contato)
+      // Advanced Matching + Lead event (so se tem contato)
       try {
         const fbq = (window as any).fbq;
         if (fbq) {
