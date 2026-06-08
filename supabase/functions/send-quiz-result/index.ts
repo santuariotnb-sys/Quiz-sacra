@@ -11,11 +11,22 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "https://rotinadepaz.com.br",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+function getCorsOrigin(req: Request): string {
+  const origin = req.headers.get("origin") ?? "";
+  // Produção + previews do Cloudflare Pages
+  if (origin === "https://rotinadepaz.com.br" || origin.endsWith(".rotina-de-paz.pages.dev")) {
+    return origin;
+  }
+  return "https://rotinadepaz.com.br";
+}
+
+function corsHeaders(req: Request): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": getCorsOrigin(req),
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 const KIRVANO_URL =
   "https://pay.kirvano.com/0b6125dc-2775-401d-8abc-90676c29031c?utm_source=email&utm_medium=quiz_result&utm_campaign=sacra";
@@ -157,8 +168,8 @@ function buildHtml(d: Body) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: CORS });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders(req) });
 
   try {
     const body = (await req.json()) as Body;
@@ -166,7 +177,7 @@ Deno.serve(async (req) => {
     const archetypeName = String(body.archetypeName ?? "").trim();
 
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !archetypeName) {
-      return new Response(JSON.stringify({ error: "invalid_params" }), { status: 400, headers: CORS });
+      return new Response(JSON.stringify({ error: "invalid_params" }), { status: 400, headers: corsHeaders(req) });
     }
 
     // Anti-spam: só envia para leads que realmente existem (vieram do quiz).
@@ -177,11 +188,11 @@ Deno.serve(async (req) => {
     );
     const { data: lead } = await sb.from("leads").select("id").eq("email", email).limit(1).maybeSingle();
     if (!lead) {
-      return new Response(JSON.stringify({ error: "lead_not_found" }), { status: 403, headers: CORS });
+      return new Response(JSON.stringify({ error: "lead_not_found" }), { status: 403, headers: corsHeaders(req) });
     }
 
     const key = Deno.env.get("RESEND_API_KEY");
-    if (!key) return new Response(JSON.stringify({ error: "no_resend_key" }), { status: 503, headers: CORS });
+    if (!key) return new Response(JSON.stringify({ error: "no_resend_key" }), { status: 503, headers: corsHeaders(req) });
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -196,10 +207,10 @@ Deno.serve(async (req) => {
     });
     if (!res.ok) {
       const t = await res.text();
-      return new Response(JSON.stringify({ error: "resend_failed", detail: t.slice(0, 150) }), { status: 502, headers: CORS });
+      return new Response(JSON.stringify({ error: "resend_failed", detail: t.slice(0, 150) }), { status: 502, headers: corsHeaders(req) });
     }
-    return new Response(JSON.stringify({ sent: true }), { status: 200, headers: CORS });
+    return new Response(JSON.stringify({ sent: true }), { status: 200, headers: corsHeaders(req) });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e).slice(0, 150) }), { status: 500, headers: CORS });
+    return new Response(JSON.stringify({ error: String(e).slice(0, 150) }), { status: 500, headers: corsHeaders(req) });
   }
 });
