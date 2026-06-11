@@ -98,3 +98,25 @@ export function formatInstallments(cents: number, n: number): string {
   const installment = (cents / n / 100).toFixed(2).replace(".", ",");
   return `ou ${n}x de R$ ${installment} sem juros`;
 }
+
+let _freeCountCache: number | null = null;
+
+export async function fetchInstallmentFreeCount(): Promise<number> {
+  if (_freeCountCache !== null) return _freeCountCache;
+  const sb = getSupabase();
+  if (!sb) return 3; // fallback
+
+  try {
+    const { data } = await sb
+      .schema("checkout")
+      .from("checkout_config")
+      .select("value")
+      .eq("key", "installment_free_count")
+      .single();
+    const val = parseInt(typeof data?.value === "string" ? data.value : String(data?.value ?? "3"), 10);
+    _freeCountCache = val > 0 ? val : 3;
+    return _freeCountCache;
+  } catch {
+    return 3;
+  }
+}

@@ -23,7 +23,7 @@ import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
 import { captureMetaClickData, getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
-import { fetchProductPrices, formatBRL } from "@/lib/prices";
+import { fetchProductPrices, fetchInstallmentFreeCount, formatBRL } from "@/lib/prices";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import { Check, Sparkles, Volume2, VolumeX } from "lucide-react";
 import narracaoAudio from "@/assets/audio/narracao.mp3";
@@ -132,6 +132,7 @@ export function QuizApp() {
   const [sending, setSending] = useState(false);
   const [mainPriceCents, setMainPriceCents] = useState(4700);
   const [mainAnchorCents, setMainAnchorCents] = useState(19700);
+  const [freeInstCount, setFreeInstCount] = useState(3);
   const startTsRef = useRef<number>(Date.now());
   // Promise da criação do lead — submitContact faz await antes de salvar email
   const leadPromiseRef = useRef<Promise<string | null>>(Promise.resolve(null));
@@ -151,6 +152,7 @@ export function QuizApp() {
         if (rp.anchorPriceCents) setMainAnchorCents(rp.anchorPriceCents);
       }
     });
+    fetchInstallmentFreeCount().then(setFreeInstCount);
   }, [offerKey]);
 
   // Fire-and-forget funnel beacon — NEVER blocks the quiz flow
@@ -547,6 +549,7 @@ export function QuizApp() {
             desire={desire}
             priceCents={mainPriceCents}
             anchorCents={mainAnchorCents}
+            freeInstCount={freeInstCount}
             onCheckout={checkout}
             onBack={() => setStage("result")}
           />
@@ -1446,6 +1449,7 @@ function OfferScreen({
   desire,
   priceCents,
   anchorCents,
+  freeInstCount,
   onCheckout,
   onBack,
 }: {
@@ -1453,6 +1457,7 @@ function OfferScreen({
   desire?: string;
   priceCents: number;
   anchorCents: number;
+  freeInstCount: number;
   onCheckout: () => void;
   onBack: () => void;
 }) {
@@ -1627,7 +1632,7 @@ function OfferScreen({
           </p>
           <p className="mt-2 text-[15px] sm:text-base text-[color:var(--deep-purple)]">
             à vista <span className="mx-2 text-[color:var(--amethyst)]">ou</span>{" "}
-            <strong>10× de {formatBRL(Math.round(priceCents / 10))}</strong>
+            <strong>{freeInstCount}× de {formatBRL(Math.round(priceCents / freeInstCount))} sem juros</strong>
           </p>
           <p className="mt-3 font-display text-[13px] sm:text-sm italic text-[color:var(--amethyst)]">
             Pagamento único · Acesso permanente · Sem mensalidade
@@ -1685,7 +1690,7 @@ function OfferScreen({
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <div className="leading-tight">
             <p className="font-display text-base text-[color:var(--deep-purple)]">
-              {formatBRL(priceCents)} <span className="text-xs font-normal text-[color:var(--amethyst)]">ou 10× {formatBRL(Math.round(priceCents / 10))}</span>
+              {formatBRL(priceCents)} <span className="text-xs font-normal text-[color:var(--amethyst)]">ou {freeInstCount}× {formatBRL(Math.round(priceCents / freeInstCount))}</span>
             </p>
             <p className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--amethyst)]">
               Acesso imediato
