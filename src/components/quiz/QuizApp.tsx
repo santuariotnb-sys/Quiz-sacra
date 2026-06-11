@@ -864,13 +864,11 @@ function ContactGateScreen({
   sending: boolean;
 }) {
   const [hint, setHint] = useState(false);
-  const validEmail = email.includes("@") && email.includes(".");
   const whatsDigits = whatsapp.replace(/\D/g, "");
   const validWhatsapp = whatsDigits.length >= 10;
-  const hasAnyContact = validEmail || validWhatsapp;
 
   const handleSubmit = () => {
-    if (!hasAnyContact) {
+    if (!validWhatsapp) {
       setHint(true);
       return;
     }
@@ -905,10 +903,10 @@ function ContactGateScreen({
         transition={{ delay: 0.3, duration: 0.6, ease: [0.2, 0.7, 0.2, 1] }}
       >
         <p className="font-display text-xl leading-snug text-[color:var(--deep-purple)]">
-          Quer que eu te mande sua leitura completa pra guardar?
+          Quer receber sua leitura completa no WhatsApp?
         </p>
         <p className="mt-2 text-sm leading-relaxed text-[color:var(--amethyst)]">
-          Pra reler quando a ansiedade apertar — sem spam, só o seu resultado e o caminho do seu padrão.
+          Te mando direto no seu número — pra reler quando a ansiedade apertar.
         </p>
 
         <form
@@ -916,21 +914,8 @@ function ContactGateScreen({
             e.preventDefault();
             if (!sending) handleSubmit();
           }}
-          className="mt-5 space-y-2.5"
+          className="mt-5"
         >
-          <input
-            id="gate-email"
-            type="email"
-            value={email}
-            onChange={(e) => { setEmail(e.target.value); setHint(false); }}
-            placeholder="seu@email.com"
-            className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
-              hint && !validEmail && !validWhatsapp ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
-            }`}
-            maxLength={120}
-            autoComplete="email"
-            autoFocus
-          />
           <input
             id="gate-whatsapp"
             type="tel"
@@ -948,14 +933,15 @@ function ContactGateScreen({
             }}
             placeholder="(00) 00000-0000"
             className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
-              hint && !validEmail && !validWhatsapp ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
+              hint ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
             }`}
             maxLength={15}
             autoComplete="tel"
+            autoFocus
           />
           {hint && (
-            <p className="mt-1 text-xs text-red-400">
-              Preencha email ou WhatsApp pra eu te enviar.
+            <p className="mt-1.5 text-xs text-red-400">
+              Digite seu WhatsApp pra eu te enviar.
             </p>
           )}
 
