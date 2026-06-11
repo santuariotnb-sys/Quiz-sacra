@@ -1620,7 +1620,7 @@ function OfferScreen({
           </p>
           <p className="mt-2 text-[15px] sm:text-base text-[color:var(--deep-purple)]">
             à vista <span className="mx-2 text-[color:var(--amethyst)]">ou</span>{" "}
-            <strong>10× de R$ 5,60</strong>
+            <strong>10× de {formatBRL(Math.round(priceCents / 10))}</strong>
           </p>
           <p className="mt-3 font-display text-[13px] sm:text-sm italic text-[color:var(--amethyst)]">
             Pagamento único · Acesso permanente · Sem mensalidade
