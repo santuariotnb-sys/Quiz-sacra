@@ -82,7 +82,14 @@ const esc = (s: unknown) =>
   );
 const rich = (h: unknown) => String(h ?? "");
 
-function buildHtml(d: Body) {
+function fmtBRL(cents: number): string {
+  return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
+}
+
+function buildHtml(d: Body, priceCents = 4700, anchorCents = 19700) {
+  const priceWhole = Math.round(priceCents / 100);
+  const installmentValue = (priceCents / 10 / 100).toFixed(2).replace(".", ",");
+  const anchorFormatted = fmtBRL(anchorCents);
   const greet = d.name ? esc(d.name) : "";
   const seal = String(d.seal || "").split("\n").map(esc).join("<br>");
   const beat = (d.desire && DESIRE_BEATS[d.desire]) || DESIRE_FALLBACK;
@@ -161,9 +168,9 @@ function buildHtml(d: Body) {
 
     <!-- 5. PRECO + CTA -->
     <table role="presentation" style="width:100%;background:${C.milkWarm};border:1px solid ${C.border};border-radius:16px;margin:0 0 20px"><tr><td style="padding:24px 20px;text-align:center">
-      <p style="font-size:15px;color:${C.amethyst};margin:0;text-decoration:line-through">De R$ 197,00</p>
-      <p style="margin:4px 0 0;color:${C.deep}"><span style="font-size:22px;vertical-align:top">R$</span> <span style="font-size:56px;font-style:italic;color:${C.goldWarm};line-height:1">47</span></p>
-      <p style="font-size:15px;margin:6px 0 0;color:${C.deep}">a vista <span style="color:${C.amethyst}">ou</span> <strong>10x de R$ 5,60</strong></p>
+      <p style="font-size:15px;color:${C.amethyst};margin:0;text-decoration:line-through">De ${anchorFormatted}</p>
+      <p style="margin:4px 0 0;color:${C.deep}"><span style="font-size:22px;vertical-align:top">R$</span> <span style="font-size:56px;font-style:italic;color:${C.goldWarm};line-height:1">${priceWhole}</span></p>
+      <p style="font-size:15px;margin:6px 0 0;color:${C.deep}">a vista <span style="color:${C.amethyst}">ou</span> <strong>10x de R$ ${installmentValue}</strong></p>
       <p style="font-size:12px;font-style:italic;color:${C.amethyst};margin:8px 0 0">Pagamento unico · Acesso permanente · Sem mensalidade</p>
     </td></tr></table>
 
@@ -211,6 +218,22 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "lead_not_found" }), { status: 403, headers: corsHeaders(req) });
     }
 
+    // Fetch preço do produto principal do DB (fonte única de preço)
+    let priceCents = 4700;
+    let anchorCents = 19700;
+    try {
+      const { data: prod } = await sb
+        .from("products")
+        .select("price_cents, anchor_price_cents")
+        .eq("slug", "rotina-de-paz")
+        .eq("status", "active")
+        .maybeSingle();
+      if (prod) {
+        priceCents = prod.price_cents ?? priceCents;
+        anchorCents = prod.anchor_price_cents ?? anchorCents;
+      }
+    } catch { /* fallback to defaults */ }
+
     const key = Deno.env.get("RESEND_API_KEY");
     if (!key) return new Response(JSON.stringify({ error: "no_resend_key" }), { status: 503, headers: corsHeaders(req) });
 
@@ -221,7 +244,7 @@ Deno.serve(async (req) => {
         from: FROM,
         to: email,
         subject: `${body.name ? body.name + ", " : ""}seu resultado: ${archetypeName} 🤍`,
-        html: buildHtml(body),
+        html: buildHtml(body, priceCents, anchorCents),
       }),
       signal: AbortSignal.timeout(8000),
     });

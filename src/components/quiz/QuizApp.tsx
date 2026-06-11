@@ -23,6 +23,7 @@ import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
 import { captureMetaClickData, getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
+import { fetchProductPrices, formatBRL } from "@/lib/prices";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import { Check, Sparkles, Volume2, VolumeX } from "lucide-react";
 import narracaoAudio from "@/assets/audio/narracao.mp3";
@@ -129,9 +130,22 @@ export function QuizApp() {
   const [whatsapp, setWhatsapp] = useState(saved?.whatsapp ?? "");
   const [email, setEmail] = useState(saved?.email ?? "");
   const [sending, setSending] = useState(false);
+  const [mainPriceCents, setMainPriceCents] = useState(4700);
+  const [mainAnchorCents, setMainAnchorCents] = useState(19700);
   const startTsRef = useRef<number>(Date.now());
   // Promise da criação do lead — submitContact faz await antes de salvar email
   const leadPromiseRef = useRef<Promise<string | null>>(Promise.resolve(null));
+
+  // Fetch preço do produto principal do DB (fonte única)
+  useEffect(() => {
+    fetchProductPrices().then((prices) => {
+      const rp = prices["rotina-de-paz"];
+      if (rp) {
+        setMainPriceCents(rp.priceCents);
+        if (rp.anchorPriceCents) setMainAnchorCents(rp.anchorPriceCents);
+      }
+    });
+  }, []);
 
   // Fire-and-forget funnel beacon — NEVER blocks the quiz flow
   // sb.rpc() returns PostgrestFilterBuilder (thenable, no .catch) — wrap in Promise.resolve
@@ -440,7 +454,7 @@ export function QuizApp() {
     void saveTrackingSession(externalId).catch(() => {});
     trackStep("cta");
     // InitiateCheckout com tick de espera para o beacon sair antes do redirect
-    await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz", value: 47 });
+    await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz", value: mainPriceCents / 100 });
     const whatsappNorm = whatsapp ? `55${whatsapp.replace(/\D/g, "")}` : undefined;
 
     if (USE_CHECKOUT_SACRA) {
@@ -524,6 +538,8 @@ export function QuizApp() {
             key="offer"
             archetype={arche}
             desire={desire}
+            priceCents={mainPriceCents}
+            anchorCents={mainAnchorCents}
             onCheckout={checkout}
             onBack={() => setStage("result")}
           />
@@ -1421,11 +1437,15 @@ function NarrationCaption({ audioSrc }: { audioSrc?: string }) {
 function OfferScreen({
   archetype,
   desire,
+  priceCents,
+  anchorCents,
   onCheckout,
   onBack,
 }: {
   archetype: ArchetypeData;
   desire?: string;
+  priceCents: number;
+  anchorCents: number;
   onCheckout: () => void;
   onBack: () => void;
 }) {
@@ -1593,10 +1613,10 @@ function OfferScreen({
             </span>
             Oferta especial desta página
           </div>
-          <p className="text-sm sm:text-base text-[color:var(--amethyst)] line-through">De R$ 197,00</p>
+          <p className="text-sm sm:text-base text-[color:var(--amethyst)] line-through">De {formatBRL(anchorCents)}</p>
           <p className="mt-2 font-display text-[color:var(--deep-purple)]">
             <span className="text-2xl sm:text-3xl align-top">R$</span>{" "}
-            <span className="font-display text-[64px] sm:text-7xl leading-none italic text-[color:var(--gold-warm)]">47</span>
+            <span className="font-display text-[64px] sm:text-7xl leading-none italic text-[color:var(--gold-warm)]">{Math.round(priceCents / 100)}</span>
           </p>
           <p className="mt-2 text-[15px] sm:text-base text-[color:var(--deep-purple)]">
             à vista <span className="mx-2 text-[color:var(--amethyst)]">ou</span>{" "}
@@ -1658,7 +1678,7 @@ function OfferScreen({
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <div className="leading-tight">
             <p className="font-display text-base text-[color:var(--deep-purple)]">
-              R$ 47 <span className="text-xs font-normal text-[color:var(--amethyst)]">ou 10× R$ 5,60</span>
+              {formatBRL(priceCents)} <span className="text-xs font-normal text-[color:var(--amethyst)]">ou 10× {formatBRL(Math.round(priceCents / 10))}</span>
             </p>
             <p className="text-[10px] uppercase tracking-[0.16em] text-[color:var(--amethyst)]">
               Acesso imediato
