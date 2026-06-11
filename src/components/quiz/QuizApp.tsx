@@ -500,6 +500,8 @@ export function QuizApp() {
             name={name}
             email={email}
             setEmail={setEmail}
+            whatsapp={whatsapp}
+            setWhatsapp={setWhatsapp}
             onSubmit={submitContact}
             onSkip={() => setStage("result")}
             sending={sending}
@@ -846,6 +848,8 @@ function ContactGateScreen({
   name,
   email,
   setEmail,
+  whatsapp,
+  setWhatsapp,
   onSubmit,
   onSkip,
   sending,
@@ -853,15 +857,20 @@ function ContactGateScreen({
   name: string;
   email: string;
   setEmail: (s: string) => void;
+  whatsapp: string;
+  setWhatsapp: (s: string) => void;
   onSubmit: () => void;
   onSkip: () => void;
   sending: boolean;
 }) {
   const [hint, setHint] = useState(false);
   const validEmail = email.includes("@") && email.includes(".");
+  const whatsDigits = whatsapp.replace(/\D/g, "");
+  const validWhatsapp = whatsDigits.length >= 10;
+  const hasAnyContact = validEmail || validWhatsapp;
 
   const handleSubmit = () => {
-    if (!validEmail) {
+    if (!hasAnyContact) {
       setHint(true);
       return;
     }
@@ -907,7 +916,7 @@ function ContactGateScreen({
             e.preventDefault();
             if (!sending) handleSubmit();
           }}
-          className="mt-5"
+          className="mt-5 space-y-2.5"
         >
           <input
             id="gate-email"
@@ -916,15 +925,37 @@ function ContactGateScreen({
             onChange={(e) => { setEmail(e.target.value); setHint(false); }}
             placeholder="seu@email.com"
             className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
-              hint ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
+              hint && !validEmail && !validWhatsapp ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
             }`}
             maxLength={120}
             autoComplete="email"
             autoFocus
           />
+          <input
+            id="gate-whatsapp"
+            type="tel"
+            inputMode="numeric"
+            value={whatsapp}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              const fmt = digits.length > 6
+                ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+                : digits.length > 2
+                  ? `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+                  : digits;
+              setWhatsapp(fmt);
+              setHint(false);
+            }}
+            placeholder="(00) 00000-0000"
+            className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
+              hint && !validEmail && !validWhatsapp ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
+            }`}
+            maxLength={15}
+            autoComplete="tel"
+          />
           {hint && (
-            <p className="mt-1.5 text-xs text-red-400">
-              Digite um email válido pra eu enviar.
+            <p className="mt-1 text-xs text-red-400">
+              Preencha email ou WhatsApp pra eu te enviar.
             </p>
           )}
 
