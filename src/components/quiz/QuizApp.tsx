@@ -35,6 +35,13 @@ const KIRVANO_URL =
   (import.meta.env.VITE_KIRVANO_URL as string | undefined) ||
   "https://pay.kirvano.com/sua-oferta";
 
+// Feature flag: VITE_USE_CHECKOUT_SACRA=true → redireciona pro /checkout Sacra
+// Rollback: remover a var ou setar false → volta pro Kirvano em 1 redeploy
+const USE_CHECKOUT_SACRA = import.meta.env.VITE_USE_CHECKOUT_SACRA === "true";
+const CHECKOUT_SACRA_URL =
+  (import.meta.env.VITE_CHECKOUT_SACRA_URL as string | undefined) ||
+  "https://rotinadepaz.com.br/checkout";
+
 type Stage = "hero" | "questions" | "loading" | "contact" | "result" | "offer";
 
 // Detecta se alguma resposta marcou risco (P2: "pensamentos sombrios" / "estou em crise").
@@ -126,9 +133,29 @@ export function QuizApp() {
   // Promise da criação do lead — submitContact faz await antes de salvar email
   const leadPromiseRef = useRef<Promise<string | null>>(Promise.resolve(null));
 
+  // Fire-and-forget funnel beacon — NEVER blocks the quiz flow
+  // sb.rpc() returns PostgrestFilterBuilder (thenable, no .catch) — wrap in Promise.resolve
+  const trackStep = (stage: string, questionKey?: string) => {
+    try {
+      const sb = getSupabase();
+      if (!sb) return;
+      void Promise.resolve(sb.rpc("track_quiz_step", {
+        p_session_id: getOrCreateExternalId(),
+        p_stage: stage,
+        p_question_key: questionKey ?? null,
+      })).catch(() => {});
+    } catch { /* never block quiz */ }
+  };
+
   useEffect(() => {
     captureUtms();
     captureMetaClickData();
+  }, []);
+
+  // Funnel: arrival beacon (once, on hero mount)
+  useEffect(() => {
+    if (stage === "hero" && !preview) trackStep("arrival");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Ao trocar de tela, volta pro topo (senão a oferta abre na altura em que estava o resultado).
@@ -225,6 +252,7 @@ export function QuizApp() {
     } catch {
       /* analytics nunca bloqueia o quiz */
     }
+    trackStep("question", q.key);
   }, [stage, qIndex]);
 
   // Loading -> Result com mensagens em sequência
@@ -247,6 +275,14 @@ export function QuizApp() {
     leadPromiseRef.current = persistLead(answers).catch(() => null);
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
+
+  // Funnel: result/offer/contact stage beacons
+  useEffect(() => {
+    if (preview) return;
+    if (stage === "contact") trackStep("contact_gate");
+    if (stage === "result") trackStep("result");
+    if (stage === "offer") trackStep("offer");
   }, [stage]);
 
   async function persistLead(ans: Record<string, string>): Promise<string | null> {
@@ -402,11 +438,27 @@ export function QuizApp() {
     const externalId = getOrCreateExternalId();
     // Fire-and-forget: salva tracking session (fbp/fbc/ua) para cruzar no webhook
     void saveTrackingSession(externalId).catch(() => {});
+    trackStep("cta");
     // InitiateCheckout com tick de espera para o beacon sair antes do redirect
     await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz", value: 47 });
     const whatsappNorm = whatsapp ? `55${whatsapp.replace(/\D/g, "")}` : undefined;
-    const url = buildKirvanoUrl(KIRVANO_URL, { archetype, name, email, whatsapp: whatsappNorm, externalId });
-    window.location.href = url;
+
+    if (USE_CHECKOUT_SACRA) {
+      // Checkout Sacra: mesmos params que a Kirvano recebe + session linkage
+      const sacraUrl = new URL(CHECKOUT_SACRA_URL);
+      const utms = captureUtms();
+      for (const [k, v] of Object.entries(utms)) { if (v) sacraUrl.searchParams.set(k, v); }
+      if (archetype) sacraUrl.searchParams.set("arquetipo", archetype);
+      if (name) sacraUrl.searchParams.set("nome", name);
+      if (email) sacraUrl.searchParams.set("email", email);
+      if (whatsappNorm) sacraUrl.searchParams.set("whatsapp", whatsappNorm);
+      sacraUrl.searchParams.set("src", externalId);
+      window.location.href = sacraUrl.toString();
+    } else {
+      // Kirvano (fallback / default)
+      const url = buildKirvanoUrl(KIRVANO_URL, { archetype, name, email, whatsapp: whatsappNorm, externalId });
+      window.location.href = url;
+    }
   }
 
   // ---------- RENDER ----------
