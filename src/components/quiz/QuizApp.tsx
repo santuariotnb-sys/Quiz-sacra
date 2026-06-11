@@ -136,16 +136,22 @@ export function QuizApp() {
   // Promise da criação do lead — submitContact faz await antes de salvar email
   const leadPromiseRef = useRef<Promise<string | null>>(Promise.resolve(null));
 
-  // Fetch preço do produto principal do DB (fonte única)
+  // Offer key from URL: ?oferta=baixa27 → selects price variant
+  const offerKey = useMemo(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("oferta") || "";
+  }, []);
+
+  // Fetch preço do produto principal do DB (fonte única, via offer_key)
   useEffect(() => {
-    fetchProductPrices().then((prices) => {
+    fetchProductPrices(offerKey || undefined).then((prices) => {
       const rp = prices["rotina-de-paz"];
       if (rp) {
         setMainPriceCents(rp.priceCents);
         if (rp.anchorPriceCents) setMainAnchorCents(rp.anchorPriceCents);
       }
     });
-  }, []);
+  }, [offerKey]);
 
   // Fire-and-forget funnel beacon — NEVER blocks the quiz flow
   // sb.rpc() returns PostgrestFilterBuilder (thenable, no .catch) — wrap in Promise.resolve
@@ -467,6 +473,7 @@ export function QuizApp() {
       if (email) sacraUrl.searchParams.set("email", email);
       if (whatsappNorm) sacraUrl.searchParams.set("whatsapp", whatsappNorm);
       sacraUrl.searchParams.set("src", externalId);
+      if (offerKey) sacraUrl.searchParams.set("oferta", offerKey);
       window.location.href = sacraUrl.toString();
     } else {
       // Kirvano (fallback / default)

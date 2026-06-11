@@ -20,31 +20,70 @@ const FALLBACK: Record<string, ProductPrice> = {
 };
 
 let _cache: Record<string, ProductPrice> | null = null;
+let _cacheKey = "";
 
-export async function fetchProductPrices(): Promise<Record<string, ProductPrice>> {
-  if (_cache) return _cache;
+export async function fetchProductPrices(offerKey?: string): Promise<Record<string, ProductPrice>> {
+  const cacheId = offerKey || "__default__";
+  if (_cache && _cacheKey === cacheId) return _cache;
 
   const sb = getSupabase();
   if (!sb) return FALLBACK;
 
   try {
-    const { data, error } = await sb
+    // First, get active products to know their IDs
+    const { data: products, error: prodErr } = await sb
       .from("products")
-      .select("slug, price_cents, anchor_price_cents")
+      .select("id, slug, price_cents, anchor_price_cents, checkout_role")
       .in("checkout_role", ["main", "upsell", "downsell"])
       .eq("status", "active");
 
-    if (error || !data?.length) return FALLBACK;
+    if (prodErr || !products?.length) return FALLBACK;
 
     const prices: Record<string, ProductPrice> = {};
-    for (const row of data) {
-      prices[row.slug] = {
-        slug: row.slug,
-        priceCents: row.price_cents,
-        anchorPriceCents: row.anchor_price_cents,
+
+    for (const p of products) {
+      let priceCents = p.price_cents;
+      let anchorCents = p.anchor_price_cents;
+
+      // For main product: try specific offer_key, then default offer
+      if (p.checkout_role === "main" && offerKey) {
+        const { data: offer } = await sb
+          .from("product_offers")
+          .select("price_cents, anchor_price_cents")
+          .eq("product_id", p.id)
+          .eq("offer_key", offerKey)
+          .eq("active", true)
+          .single();
+        if (offer) {
+          priceCents = offer.price_cents;
+          if (offer.anchor_price_cents != null) anchorCents = offer.anchor_price_cents;
+        }
+      }
+
+      // If no specific offer matched, try default offer
+      if (priceCents === p.price_cents) {
+        const { data: defOffer } = await sb
+          .from("product_offers")
+          .select("price_cents, anchor_price_cents")
+          .eq("product_id", p.id)
+          .eq("is_default", true)
+          .eq("active", true)
+          .single();
+        if (defOffer) {
+          priceCents = defOffer.price_cents;
+          if (defOffer.anchor_price_cents != null) anchorCents = defOffer.anchor_price_cents;
+        }
+      }
+
+      prices[p.slug] = {
+        slug: p.slug,
+        priceCents,
+        anchorPriceCents: anchorCents,
       };
     }
+
     _cache = prices;
+    _cacheKey = cacheId;
     return prices;
   } catch {
     return FALLBACK;
