@@ -890,6 +890,7 @@ function ContactGateScreen({
   sending: boolean;
 }) {
   const [hint, setHint] = useState(false);
+  const whatsappRef = useRef<HTMLInputElement>(null);
   const whatsDigits = whatsapp.replace(/\D/g, "");
   const validWhatsapp = whatsDigits.length >= 10;
 
@@ -944,11 +945,15 @@ function ContactGateScreen({
         >
           <input
             id="gate-whatsapp"
+            ref={whatsappRef}
             type="tel"
             inputMode="numeric"
             value={whatsapp}
             onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              const el = e.target;
+              const cursor = el.selectionStart ?? el.value.length;
+              const prevLen = whatsapp.length;
+              const digits = el.value.replace(/\D/g, "").slice(0, 11);
               const fmt = digits.length > 6
                 ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
                 : digits.length > 2
@@ -956,6 +961,13 @@ function ContactGateScreen({
                   : digits;
               setWhatsapp(fmt);
               setHint(false);
+              // Preserve cursor position after React re-render
+              requestAnimationFrame(() => {
+                if (whatsappRef.current) {
+                  const newCursor = Math.max(0, cursor + (fmt.length - prevLen));
+                  whatsappRef.current.setSelectionRange(newCursor, newCursor);
+                }
+              });
             }}
             placeholder="(00) 00000-0000"
             className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
