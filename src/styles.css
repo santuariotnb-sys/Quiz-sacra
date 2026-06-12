@@ -291,6 +291,28 @@
 }
 .rdp-bob { animation: rdp-bob 1.6s ease-in-out infinite; }
 
+/* C4-v3: campo do nome pulsando (glow lavanda) — para ao focar */
+@keyframes rdp-field-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(163,140,183,0.25); transform: scale(1); }
+  50%      { box-shadow: 0 0 0 8px rgba(163,140,183,0); transform: scale(1.015); }
+}
+
+/* C4-v4: coração heartbeat (batida dupla real) */
+@keyframes rdp-heartbeat {
+  0%   { transform: scale(1); }
+  14%  { transform: scale(1.18); }
+  28%  { transform: scale(1); }
+  42%  { transform: scale(1.12); }
+  56%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
+/* C4-v4: seta draw-on */
+@keyframes rdp-draw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+
 /* CTA pulsante: anel dourado expandindo */
 @keyframes rdp-cta-pulse {
   0%, 100% { box-shadow: 0 20px 44px -18px rgba(63,53,80,.7), 0 0 0 0 rgba(184,146,78,.55); }
