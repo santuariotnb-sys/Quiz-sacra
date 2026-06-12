@@ -6,13 +6,14 @@ import { SpeechBubble } from "./SpeechBubble";
 import { EmotionalProgress } from "./EmotionalProgress";
 import {
   ARCHETYPES,
-  CONFIRMATIONS,
   DESIRE_BEAT,
   DESIRE_BEAT_FALLBACK,
   DESIRE_CTA,
   DESIRE_QUOTE,
   ENCOURAGEMENTS,
   QUESTIONS,
+  SYMPTOM_STATS,
+  getGuideReaction,
   computeArchetype,
   getTransition,
   type Archetype,
@@ -39,7 +40,7 @@ const KIRVANO_URL =
 // Feature flag: VITE_USE_CHECKOUT_SACRA=true → redireciona pro /checkout Sacra
 // Rollback: remover a var ou setar false → volta pro Kirvano em 1 redeploy
 const USE_CHECKOUT_SACRA = import.meta.env.VITE_USE_CHECKOUT_SACRA === "true";
-const QUIZ_VERSION = "v2-onda0";
+const QUIZ_VERSION = "v2-onda1";
 const CHECKOUT_SACRA_URL =
   (import.meta.env.VITE_CHECKOUT_SACRA_URL as string | undefined) ||
   "https://rotinadepaz.com.br/checkout";
@@ -134,13 +135,20 @@ export function QuizApp() {
   const [stage, setStage] = useState<Stage>(
     preview ? preview.stage : saved ? saved.stage : "hero",
   );
+  // Retomada: banner "Que bom que você voltou" quando restaura de localStorage
+  const [showResumeBanner, setShowResumeBanner] = useState(
+    !!saved && saved.stage === "questions",
+  );
   const [name, setName] = useState(saved?.name ?? "");
   const [qIndex, setQIndex] = useState(saved?.qIndex ?? 0);
   const qIndexRef = useRef(qIndex);
   qIndexRef.current = qIndex;
   const answeringRef = useRef(false);
   const [answers, setAnswers] = useState<Record<string, string>>(saved?.answers ?? {});
-  const [confirmation, setConfirmation] = useState<string | null>(null);
+  // G1-v5: reação da guia — balão com avatar e typing (formato único)
+  const [reaction, setReaction] = useState<string | null>(null);
+  // Ref: texto da reação pra encadear com a transição da próxima pergunta
+  const pendingReactionRef = useRef<string | null>(null);
   const [encouragement, setEncouragement] = useState<string | null>(null);
   const [whatsapp, setWhatsapp] = useState(saved?.whatsapp ?? "");
   const [email, setEmail] = useState(saved?.email ?? "");
@@ -246,34 +254,42 @@ export function QuizApp() {
     try { playDing(); } catch {}
     const next = { ...answers, [q.key]: value };
     setAnswers(next);
-    setConfirmation(CONFIRMATIONS[Math.floor(Math.random() * CONFIRMATIONS.length)]);
-    window.setTimeout(() => setConfirmation(null), 900);
+
+    // G1-v5: reação como balão da guia (formato único pra tudo)
+    const { text: reactionText, durationMs } = getGuideReaction(q.key, value);
+    setReaction(reactionText);
 
     const isLast = idx === QUESTIONS.length - 1;
+    const nextQ = !isLast ? QUESTIONS[idx + 1] : null;
+    const nextHasTransition = nextQ && (nextQ.transition || nextQ.transitionFrom);
 
-    if (isLast) {
-      window.setTimeout(() => {
-
-        setStage("loading");
-      }, 450);
-      return; // answeringRef stays true — quiz over
+    // Se próxima pergunta tem transição, encadear reação+transição num balão só
+    if (nextHasTransition) {
+      pendingReactionRef.current = reactionText;
     }
 
-    // encorajamento a cada 3 perguntas
-    if ((idx + 1) % 3 === 0) {
-      const msg = ENCOURAGEMENTS[Math.min(Math.floor((idx + 1) / 3) - 1, ENCOURAGEMENTS.length - 1)];
-      setEncouragement(msg);
-      window.setTimeout(() => {
-        setEncouragement(null);
+    window.setTimeout(() => {
+      setReaction(null);
+
+      if (isLast) {
+        window.setTimeout(() => setStage("loading"), 200);
+        return;
+      }
+
+      // encorajamento a cada 3 perguntas
+      if ((idx + 1) % 3 === 0) {
+        const msg = ENCOURAGEMENTS[Math.min(Math.floor((idx + 1) / 3) - 1, ENCOURAGEMENTS.length - 1)];
+        setEncouragement(msg);
+        window.setTimeout(() => {
+          setEncouragement(null);
+          setQIndex((i) => i + 1);
+          answeringRef.current = false;
+        }, 2500);
+      } else {
         setQIndex((i) => i + 1);
-        answeringRef.current = false; // libera próxima resposta
-      }, 2500);
-    } else {
-      window.setTimeout(() => {
-        setQIndex((i) => i + 1);
-        answeringRef.current = false; // libera próxima resposta
-      }, 500);
-    }
+        answeringRef.current = false;
+      }
+    }, durationMs);
   };
 
   // Análise de abandono: marca cada pergunta EXIBIDA. No Meta, o funil de eventos
@@ -295,21 +311,27 @@ export function QuizApp() {
     trackStep("question", q.key);
   }, [stage, qIndex]);
 
-  // Loading -> Result com mensagens em sequência
+  // G4-v2: Loading com ritmo lento (1.1s/item) + card de micro-recompensa (2s) entre itens 2-3
   const [loadingMsg, setLoadingMsg] = useState(0);
+  const [loadingStatCard, setLoadingStatCard] = useState(false);
   useEffect(() => {
     if (stage !== "loading") return;
     setLoadingMsg(0);
-    const messages = 6;
-    const step = 1200;
+    setLoadingStatCard(false);
+    const step = 1100;
     const timers: number[] = [];
-    for (let i = 1; i < messages; i++) {
-      timers.push(window.setTimeout(() => setLoadingMsg(i), step * i));
-    }
-    timers.push(window.setTimeout(() => {
-
-      setStage("contact");
-    }, step * messages));
+    // Items 0,1 at step intervals
+    timers.push(window.setTimeout(() => setLoadingMsg(1), step));
+    // After item 1: show stat card for 2s, then continue
+    const statStart = step * 2;
+    timers.push(window.setTimeout(() => setLoadingStatCard(true), statStart));
+    const statEnd = statStart + 2000;
+    timers.push(window.setTimeout(() => { setLoadingStatCard(false); setLoadingMsg(2); }, statEnd));
+    // Items 3,4 after the stat card
+    timers.push(window.setTimeout(() => setLoadingMsg(3), statEnd + step));
+    timers.push(window.setTimeout(() => setLoadingMsg(4), statEnd + step * 2));
+    // Transition to contact
+    timers.push(window.setTimeout(() => setStage("contact"), statEnd + step * 2 + 800));
     // Persiste lead no Supabase (best effort). Lead event disparado na captura de contato.
     // A promise é guardada em leadPromiseRef para o submitContact fazer await.
     leadPromiseRef.current = persistLead(answers).catch(() => null);
@@ -525,14 +547,17 @@ export function QuizApp() {
             qIndex={qIndex}
             total={QUESTIONS.length}
             answer={answer}
-            confirmation={confirmation}
+            reaction={reaction}
+            pendingReaction={pendingReactionRef}
             encouragement={encouragement}
             answers={answers}
+            resumeBanner={showResumeBanner}
+            onDismissResume={() => setShowResumeBanner(false)}
           />
         )}
 
         {stage === "loading" && (
-          <LoadingScreen key="loading" step={loadingMsg} />
+          <LoadingScreen key="loading" step={loadingMsg} answers={answers} name={name} statCard={loadingStatCard} />
         )}
 
         {stage === "contact" && (
@@ -580,6 +605,20 @@ export function QuizApp() {
 
 /* ============================== HERO ============================== */
 
+// C4-v3: cascata animada, campo pulsando, chevron, menos texto.
+// Stagger cascade: cada bloco entra com fade+translateY, 0.15s stagger.
+const EASE_SOFT: [number, number, number, number] = [0.2, 0.7, 0.2, 1];
+const cascade = (i: number) => ({
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5, delay: 0.1 + i * 0.15, ease: EASE_SOFT },
+});
+const cascadePop = (i: number) => ({
+  initial: { opacity: 0, y: 12, scale: 0.96 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  transition: { duration: 0.5, delay: 0.1 + i * 0.15, ease: EASE_SOFT },
+});
+
 function HeroScreen({
   name,
   setName,
@@ -589,86 +628,194 @@ function HeroScreen({
   setName: (s: string) => void;
   onStart: () => void;
 }) {
+  const [focused, setFocused] = useState(false);
+  const prefersReduced = useMemo(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    [],
+  );
+  const anim = prefersReduced
+    ? { initial: undefined, animate: undefined, transition: undefined }
+    : {};
+
   return (
     <motion.section
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-5 py-8 text-center sm:px-6 sm:py-16"
+      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-5 py-4 text-center sm:px-6 sm:py-16"
     >
-      {/* Avatar + bubble (padrão atual) */}
-      <div className="flex w-full items-start justify-center gap-4">
+      {/* 0. Avatar + bubble */}
+      <motion.div className="flex w-full items-start justify-center gap-3 sm:gap-4" {...(prefersReduced ? {} : cascade(0))}>
         <GuideAvatar size="corner" />
-        <SpeechBubble
-          text="Olá. Eu sou sua guia nessa jornada."
-          typingDelay={400}
-        />
-      </div>
+        <SpeechBubble text="Olá. Eu sou sua guia nessa jornada." typingDelay={400} />
+      </motion.div>
 
-      {/* Eyebrow com traços */}
-      <div className="mt-8 flex items-center gap-4 text-[color:var(--amethyst)] sm:mt-14">
+      {/* 1. Eyebrow */}
+      <motion.div className="mt-5 flex items-center gap-4 text-[color:var(--amethyst)] sm:mt-14" {...(prefersReduced ? {} : cascade(1))}>
         <span className="h-px w-10 bg-[color:var(--gold)]/60" />
-        <p className="text-xs font-medium uppercase tracking-[0.28em]">
-          Quiz personalizado · 7 perguntas
-        </p>
+        <p className="text-xs font-medium uppercase tracking-[0.28em]">Quiz personalizado · 7 perguntas</p>
         <span className="h-px w-10 bg-[color:var(--gold)]/60" />
-      </div>
+      </motion.div>
 
-      {/* Título grande com gradiente */}
-      <h1 className="rdp-title-gradient mt-5 font-display text-4xl leading-[1.05] tracking-tight sm:mt-8 sm:text-[64px]">
-        Sua ansiedade tem um <em className="italic">tipo</em>.
-      </h1>
+      {/* 2. Headline B2 */}
+      <motion.h1
+        className="rdp-title-gradient mt-4 font-display text-3xl leading-[1.05] tracking-tight sm:mt-8 sm:text-[64px]"
+        {...(prefersReduced ? {} : cascade(2))}
+      >
+        Não é a sua oração que está <em className="italic">falhando</em>.
+      </motion.h1>
 
-      {/* Subtítulo serif itálico */}
-      <p className="mt-4 font-display text-xl italic leading-snug text-[color:var(--amethyst)] sm:mt-7 sm:text-[28px]">
-        Descubra qual é o seu —
-        <br />
-        e o caminho que foi feito para ele.
-      </p>
+      {/* 3. Subheadline — ênfase tipográfica (weight 700), sem cor extra */}
+      <motion.p
+        className="mt-3 font-display text-lg italic leading-snug text-[color:var(--amethyst)] sm:mt-5 sm:text-[28px]"
+        {...(prefersReduced ? {} : cascade(3))}
+      >
+        Descubra o que está{" "}
+        <strong className="font-bold">abafando essa paz</strong>
+        {" "}— e o caminho pro seu padrão.
+      </motion.p>
 
-      {/* Body */}
-      <p className="mt-6 max-w-xl text-sm leading-relaxed text-[color:var(--deep-purple)] sm:mt-10 sm:text-lg">
-        Existem 4 padrões diferentes de ansiedade entre mulheres cristãs.
-        Descubra o seu — e por que a oração que funciona pra outras pessoas
-        pode estar tendo efeito curto na sua.
-      </p>
-
-      {/* Form: name + CTA escuro */}
+      {/* 4–8. Form: coração + seta arco + nome + botão + prova */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           if (name.trim().length >= 2) onStart();
         }}
-        className="mt-6 flex w-full max-w-sm flex-col items-center gap-3 sm:mt-12 sm:gap-4"
+        className="relative mt-5 flex w-full max-w-sm flex-col items-center gap-2.5 sm:mt-7 sm:gap-3"
       >
-        <input
-          id="name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Como posso te chamar?"
-          className="w-full rounded-full border border-[color:var(--border)] bg-white/70 px-6 py-3.5 text-center text-base text-[color:var(--deep-purple)] placeholder:text-[color:var(--amethyst)]/60 focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
-          autoComplete="given-name"
-          required
-          minLength={2}
-          maxLength={40}
-        />
-        <button
+        {/* Micro-CTA com coração heartbeat */}
+        <motion.p
+          className="flex items-center gap-1.5 text-[13px] italic text-[color:var(--amethyst)]"
+          {...(prefersReduced ? {} : cascade(4))}
+        >
+          <span>Me diz seu nome — quero te chamar por ele</span>
+          <span
+            className="inline-block text-base"
+            style={prefersReduced ? {} : { animation: "rdp-heartbeat 1.6s ease-in-out infinite", color: "#D85A75" }}
+            aria-hidden
+          >
+            ♥
+          </span>
+        </motion.p>
+
+        {/* Seta arco SVG: absolute no canto direito do form, conecta ❤️ → input */}
+        {/* Arco vertical com bojo pra direita — posicionado entre micro-CTA e input */}
+        <motion.div
+          className="pointer-events-none absolute right-1 top-[22px] z-10 sm:right-0 sm:top-[24px]"
+          {...(prefersReduced ? {} : cascade(4))}
+          aria-hidden
+        >
+          {/* Mobile: 28×44 */}
+          <svg viewBox="0 0 28 44" fill="none" className="block h-[44px] w-[28px] sm:hidden">
+            <path
+              d="M4 3 C20 3, 24 18, 18 38"
+              stroke="var(--amethyst)"
+              strokeOpacity="0.5"
+              strokeWidth="2"
+              strokeLinecap="round"
+              pathLength="1"
+              style={prefersReduced ? {} : {
+                strokeDasharray: 1,
+                strokeDashoffset: 0,
+                animation: "rdp-draw 0.7s ease-out 0.8s both",
+              }}
+            />
+            <path
+              d="M14 34 L18 41 L22 34"
+              stroke="var(--amethyst)"
+              strokeOpacity="0.5"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              pathLength="1"
+              style={prefersReduced ? {} : {
+                strokeDasharray: 1,
+                strokeDashoffset: 0,
+                animation: "rdp-draw 0.3s ease-out 1.3s both",
+              }}
+            />
+          </svg>
+          {/* Desktop: 36×52 */}
+          <svg viewBox="0 0 36 52" fill="none" className="hidden h-[52px] w-[36px] sm:block">
+            <path
+              d="M4 3 C26 3, 32 22, 22 45"
+              stroke="var(--amethyst)"
+              strokeOpacity="0.5"
+              strokeWidth="2"
+              strokeLinecap="round"
+              pathLength="1"
+              style={prefersReduced ? {} : {
+                strokeDasharray: 1,
+                strokeDashoffset: 0,
+                animation: "rdp-draw 0.7s ease-out 0.8s both",
+              }}
+            />
+            <path
+              d="M18 40 L22 48 L26 40"
+              stroke="var(--amethyst)"
+              strokeOpacity="0.5"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              pathLength="1"
+              style={prefersReduced ? {} : {
+                strokeDasharray: 1,
+                strokeDashoffset: 0,
+                animation: "rdp-draw 0.3s ease-out 1.3s both",
+              }}
+            />
+          </svg>
+        </motion.div>
+
+        {/* Campo do nome (glow sutil — secundário ao coração) */}
+        <motion.div className="w-full" {...(prefersReduced ? {} : cascade(5))}>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => { if (!name) setFocused(false); }}
+            placeholder="Seu primeiro nome"
+            className="w-full rounded-full border border-[color:var(--border)] bg-white/70 px-6 py-3 text-center text-base text-[color:var(--deep-purple)] placeholder:text-[color:var(--amethyst)]/60 focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
+            style={
+              !focused && !name && !prefersReduced
+                ? { animation: "rdp-field-pulse 2.4s ease-in-out infinite" }
+                : {}
+            }
+            autoComplete="given-name"
+            required
+            minLength={2}
+            maxLength={40}
+          />
+        </motion.div>
+
+        <motion.button
           type="submit"
           disabled={name.trim().length < 2}
           className="rdp-btn-gradient-hover group inline-flex items-center justify-center gap-3 rounded-full px-10 py-4 text-sm font-medium uppercase tracking-[0.22em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] hover:-translate-y-[1px] disabled:hover:translate-y-0"
+          {...(prefersReduced ? {} : cascadePop(6))}
         >
-          Estou pronta
-          <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
-        </button>
+          {name.trim().length >= 2
+            ? <><span>Pronta, {name.trim().split(/\s/)[0]}? Começar</span> <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span></>
+            : <><span>Quero meu diagnóstico</span> <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span></>
+          }
+        </motion.button>
+
+        <motion.p className="text-[12px] text-[color:var(--amethyst)]/70" {...(prefersReduced ? {} : cascade(7))}>
+          Leva menos de 3 minutos · 7 perguntas
+        </motion.p>
       </form>
 
-      {/* Footer italic */}
-      <p className="mt-5 max-w-md font-display text-sm italic leading-relaxed text-[color:var(--amethyst)]/85 sm:mt-10 sm:text-base">
-        Sem julgamento. Sem diagnóstico. Sem rótulo.
-        <br />
-        Só uma forma honesta de você escutar a si mesma.
-      </p>
+      {/* Pill de prova social — fundo dourado sutil */}
+      <motion.div
+        className="mt-3 inline-flex items-center rounded-full border border-[color:var(--gold-warm)]/25 bg-[color:var(--gold-warm)]/[0.08] px-3.5 py-1.5 text-[13px] text-[color:var(--deep-purple)] sm:mt-5"
+        {...(prefersReduced ? {} : cascade(8))}
+      >
+        Mais de{" "}
+        <span className="mx-1 font-semibold text-[color:var(--gold-warm)]">70 mulheres</span>
+        {" "}fizeram esse diagnóstico nos últimos dias.
+      </motion.div>
     </motion.section>
   );
 }
@@ -679,29 +826,44 @@ function QuestionScreen({
   qIndex,
   total,
   answer,
-  confirmation,
+  reaction,
+  pendingReaction,
   encouragement,
   answers,
+  resumeBanner,
+  onDismissResume,
 }: {
   qIndex: number;
   total: number;
   answer: (v: string) => void | Promise<void>;
-  confirmation: string | null;
+  reaction: string | null;
+  pendingReaction: React.RefObject<string | null>;
   encouragement: string | null;
   answers: Record<string, string>;
+  resumeBanner: boolean;
+  onDismissResume: () => void;
 }) {
   const safeIndex = qIndex >= 0 && qIndex < QUESTIONS.length ? qIndex : 0;
   const q = QUESTIONS[safeIndex];
-  const transition = getTransition(safeIndex, answers);
+  const rawTransition = getTransition(safeIndex, answers);
   const [showOptions, setShowOptions] = useState(false);
-  const [showPrompt, setShowPrompt] = useState(!transition);
+  const [showPrompt, setShowPrompt] = useState(!rawTransition);
+
+  // G1-v5: encadear reação pendente + transição num balão só
+  const chainedReaction = pendingReaction.current;
+  const transition = chainedReaction && rawTransition
+    ? `${chainedReaction}\n\n${rawTransition}`
+    : rawTransition;
+
+  // Limpa a reação pendente após consumir
+  useEffect(() => {
+    if (chainedReaction) pendingReaction.current = null;
+  });
 
   useEffect(() => {
     if (!q) return;
     setShowOptions(false);
     setShowPrompt(!transition);
-    // A transição sobe pronta (instant); só esperamos um tempo de leitura
-    // antes da pergunta começar a digitar.
     const promptDelay = transition ? 650 : 0;
     const t1 = transition
       ? window.setTimeout(() => setShowPrompt(true), promptDelay)
@@ -724,20 +886,53 @@ function QuestionScreen({
       exit={{ opacity: 0 }}
       className="mx-auto flex min-h-dvh max-w-2xl flex-col px-4 pb-6 pt-4 sm:px-8 sm:pb-10 sm:pt-6"
     >
-      <EmotionalProgress current={qIndex + 1} total={total} />
+      <EmotionalProgress current={qIndex + 1} total={total} answers={answers} />
+
+      {/* Retomada: banner de boas-vindas */}
+      <AnimatePresence>
+        {resumeBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            onAnimationComplete={() => {
+              window.setTimeout(onDismissResume, 3000);
+            }}
+            className="mt-3 rounded-xl bg-[color:var(--milk-warm)] px-4 py-2.5 text-center text-sm text-[color:var(--amethyst)]"
+          >
+            Que bom que você voltou. Suas respostas estão guardadas — faltam só {total - qIndex}.
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="mt-5 flex items-start gap-3 sm:mt-8 sm:gap-5">
         <GuideAvatar size="corner" />
         <div className="flex-1 space-y-2 pt-1 sm:space-y-3">
-          {transition && (
+          {/* G1-v5: reação da guia como balão (mesmo visual das transições) */}
+          <AnimatePresence>
+            {reaction && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <SpeechBubble text={reaction} italic resetKey={reaction} typingDelay={0} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Transição (pode ter reação encadeada no início) */}
+          {!reaction && transition && (
             <SpeechBubble
               text={transition}
               resetKey={`t-${qIndex}`}
               italic
-              instant
+              instant={!chainedReaction}
+              typingDelay={chainedReaction ? 0 : undefined}
             />
           )}
-          {showPrompt && (
+          {!reaction && showPrompt && (
             <SpeechBubble
               text={q.prompt}
               resetKey={`p-${qIndex}`}
@@ -749,14 +944,14 @@ function QuestionScreen({
 
       <div className="mt-5 grid gap-2 sm:mt-8 sm:gap-3">
         <AnimatePresence>
-          {showOptions &&
+          {!reaction && showOptions &&
             q.options.map((opt, i) => (
               <motion.button
                 key={opt.value}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                transition={{ delay: i * 0.18, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                transition={{ delay: i * 0.18, duration: 0.35, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }}
                 onClick={() => answer(opt.value)}
                 className="group relative overflow-hidden rounded-2xl border border-[color:var(--border)] bg-white px-5 py-4 text-left text-base text-[color:var(--deep-purple)] transition-all hover:-translate-y-0.5 hover:border-[color:var(--lavender)] hover:rdp-shadow-soft sm:text-lg"
               >
@@ -769,20 +964,6 @@ function QuestionScreen({
             ))}
         </AnimatePresence>
       </div>
-
-      {/* Confirmação efêmera */}
-      <AnimatePresence>
-        {confirmation && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mt-5 self-center rounded-full bg-[color:var(--milk-warm)] px-4 py-1.5 text-sm text-[color:var(--amethyst)]"
-          >
-            {confirmation}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Encorajamento bloqueador */}
       <AnimatePresence>
@@ -810,16 +991,35 @@ function QuestionScreen({
 
 /* ============================== LOADING ============================== */
 
-function LoadingScreen({ step }: { step: number }) {
+function LoadingScreen({ step, answers, name, statCard }: { step: number; answers: Record<string, string>; name: string; statCard: boolean }) {
   const particles = Array.from({ length: 28 });
-  const messages = [
-    "Lendo suas respostas com calma...",
-    "Cruzando os 4 padrões raízes...",
-    "Mapeando o que seu corpo está pedindo...",
-    "Encontrando o caminho desenhado pra você...",
-    "Preparando sua leitura completa...",
-    "Pronto.",
+
+  // G4-v2: pills reais com destaque dourado
+  const pillOf = (key: string): string => {
+    const val = answers[key];
+    if (!val) return "";
+    const q = QUESTIONS.find((q) => q.key === key);
+    const opt = q?.options.find((o) => o.value === val);
+    return opt?.pill ?? "";
+  };
+
+  const pillSituacao = pillOf("situacao");
+  const pillSintoma = pillOf("sintoma");
+  const pillComportamento = pillOf("comportamento");
+
+  // Stat card: estatística real por sintoma
+  const sintoma = answers["sintoma"] ?? "";
+  const statText = SYMPTOM_STATS[sintoma] ?? SYMPTOM_STATS["todos"] ?? "";
+
+  // Mensagens com marcadores para split gold (texto entre ** fica dourado)
+  const messages: Array<{ prefix: string; gold: string; suffix: string }> = [
+    { prefix: "Analisando seu contexto: ", gold: pillSituacao || "suas respostas", suffix: "…" },
+    { prefix: "Cruzando: ", gold: `${pillSintoma || "sintomas"} + ${pillComportamento || "comportamento"}`, suffix: "…" },
+    { prefix: "Identificando seu padrão ", gold: "entre os 4", suffix: "…" },
+    { prefix: "Localizando os capítulos ", gold: "do método pro seu caso", suffix: "…" },
+    { prefix: `Pronto${name ? `, ${name}` : ""}. `, gold: "Seu resultado chegou", suffix: "." },
   ];
+
   return (
     <motion.section
       initial={{ opacity: 0 }}
@@ -862,18 +1062,56 @@ function LoadingScreen({ step }: { step: number }) {
         <p className="rdp-haja-luz mt-3 font-display text-[11px] uppercase tracking-[0.42em] text-[color:rgba(232,201,160,0.85)]">
           Haja Luz
         </p>
-        <ul className="mt-6 space-y-1.5">
-          {messages.map((m, i) => (
-            <li
-              key={m}
-              className={`font-display text-sm italic transition-all duration-500 ${
-                i <= step ? "text-[color:rgba(232,201,160,0.85)]" : "text-white/15"
-              }`}
-            >
-              {m}
-            </li>
-          ))}
+
+        {/* G4-v2: Checklist com gold + checkmarks */}
+        <ul className="mt-6 space-y-2.5 text-left">
+          {messages.map((m, i) => {
+            const done = i <= step;
+            return (
+              <li
+                key={i}
+                className={`flex items-start gap-2.5 font-display text-sm italic transition-all duration-500 ${
+                  done ? "text-[color:rgba(232,201,160,0.85)]" : "text-white/15"
+                }`}
+              >
+                {/* Checkmark animado */}
+                <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-all duration-500 ${
+                  done ? "bg-[color:rgba(232,201,160,0.25)]" : "bg-white/5"
+                }`}>
+                  {done && (
+                    <Check className="h-2.5 w-2.5 text-[color:rgba(232,201,160,0.9)]" strokeWidth={3} />
+                  )}
+                </span>
+                <span>
+                  {m.prefix}
+                  <span className={`font-semibold transition-colors duration-500 ${
+                    done ? "text-[color:var(--gold-warm)]" : ""
+                  }`}>
+                    {m.gold}
+                  </span>
+                  {m.suffix}
+                </span>
+              </li>
+            );
+          })}
         </ul>
+
+        {/* G4-v2: Micro-recompensa — card de estatística real */}
+        <AnimatePresence>
+          {statCard && statText && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.5, ease: [0.2, 0.7, 0.2, 1] }}
+              className="mx-4 mt-5 max-w-sm rounded-xl border border-[color:rgba(232,201,160,0.2)] bg-white/5 px-5 py-4 text-center backdrop-blur-sm"
+            >
+              <p className="font-display text-[13px] italic leading-relaxed text-[color:rgba(232,201,160,0.9)]">
+                {statText}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.section>
   );
