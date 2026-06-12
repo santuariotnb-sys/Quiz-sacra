@@ -9,6 +9,7 @@ export type QuizOption = {
   label: string;
   scores?: Partial<Record<Archetype, number>>;
   risk?: boolean;
+  pill?: string;
 };
 
 export type QuizQuestion = {
@@ -30,11 +31,11 @@ export const QUESTIONS: QuizQuestion[] = [
       "Para que o diagnóstico seja preciso para a sua vida, preciso entender o seu contexto primeiro.",
     prompt: "Qual situação descreve melhor a sua vida hoje?",
     options: [
-      { value: "casada-filhos-pequenos", label: "Sou casada e tenho filhos pequenos (0-12 anos)" },
-      { value: "casada-filhos-grandes", label: "Sou casada e tenho filhos grandes (adolescentes/adultos)" },
-      { value: "casada-sem-filhos", label: "Sou casada, sem filhos (ou tentando)" },
-      { value: "mae-solo", label: "Sou mãe solo — sustento minha casa sozinha" },
-      { value: "solteira", label: "Sou solteira, sem filhos" },
+      { value: "casada-filhos-pequenos", label: "Sou casada e tenho filhos pequenos (0-12 anos)", pill: "Filhos pequenos" },
+      { value: "casada-filhos-grandes", label: "Sou casada e tenho filhos grandes (adolescentes/adultos)", pill: "Filhos grandes" },
+      { value: "casada-sem-filhos", label: "Sou casada, sem filhos (ou tentando)", pill: "Casada" },
+      { value: "mae-solo", label: "Sou mãe solo — sustento minha casa sozinha", pill: "Mãe solo" },
+      { value: "solteira", label: "Sou solteira, sem filhos", pill: "Solteira" },
     ],
   },
   {
@@ -68,11 +69,11 @@ export const QUESTIONS: QuizQuestion[] = [
       "Obrigada por ser honesta. Vou seguir. Agora vamos olhar para o corpo — porque ansiedade não mora só na cabeça.",
     prompt: "Qual desses sintomas físicos você mais reconhece em você?",
     options: [
-      { value: "madrugada", label: "Acordo entre 3h e 5h da manhã e não consigo voltar a dormir", scores: { vigilante: 3 } },
-      { value: "tensao", label: "Sinto cansaço crônico, tensão em ombros/pescoço/mandíbula", scores: { sobrecarga: 3 } },
-      { value: "estomago", label: "Estômago travado, intestino reagindo, sintomas físicos que ninguém entende", scores: { culposa: 3, vigilante: 1 } },
-      { value: "peito", label: "Peito apertado, respiração curta, sensação de que algo ruim vai acontecer", scores: { antecipatoria: 3 } },
-      { value: "todos", label: "Tudo isso, em momentos diferentes", scores: { vigilante: 1, sobrecarga: 1, culposa: 1, antecipatoria: 1 } },
+      { value: "madrugada", label: "Acordo entre 3h e 5h da manhã e não consigo voltar a dormir", scores: { vigilante: 3 }, pill: "Acorda 3h–5h" },
+      { value: "tensao", label: "Sinto cansaço crônico, tensão em ombros/pescoço/mandíbula", scores: { sobrecarga: 3 }, pill: "Tensão no corpo" },
+      { value: "estomago", label: "Estômago travado, intestino reagindo, sintomas físicos que ninguém entende", scores: { culposa: 3, vigilante: 1 }, pill: "Estômago travado" },
+      { value: "peito", label: "Peito apertado, respiração curta, sensação de que algo ruim vai acontecer", scores: { antecipatoria: 3 }, pill: "Peito apertado" },
+      { value: "todos", label: "Tudo isso, em momentos diferentes", scores: { vigilante: 1, sobrecarga: 1, culposa: 1, antecipatoria: 1 }, pill: "Vários sinais" },
     ],
   },
   {
@@ -92,10 +93,10 @@ export const QUESTIONS: QuizQuestion[] = [
     },
     prompt: "Quando a ansiedade aparece, qual desses comportamentos é mais seu?",
     options: [
-      { value: "checagem", label: "Fico checando: trava da porta, gás, e-mail, mensagem do filho. Não consigo desligar.", scores: { vigilante: 3 } },
-      { value: "aceitar-mais", label: "Aceito mais uma tarefa. Mais um cuidado. Não consigo dizer não.", scores: { sobrecarga: 3 } },
-      { value: "oracao", label: "Oro pedindo perdão. Releio versículos. Tento confiar mais. E não passa.", scores: { culposa: 3 } },
-      { value: "cenarios", label: "Imagino cenários ruins. Crio diálogos difíceis na cabeça antes de acontecer.", scores: { antecipatoria: 3 } },
+      { value: "checagem", label: "Fico checando: trava da porta, gás, e-mail, mensagem do filho. Não consigo desligar.", scores: { vigilante: 3 }, pill: "Checagem constante" },
+      { value: "aceitar-mais", label: "Aceito mais uma tarefa. Mais um cuidado. Não consigo dizer não.", scores: { sobrecarga: 3 }, pill: "Não diz não" },
+      { value: "oracao", label: "Oro pedindo perdão. Releio versículos. Tento confiar mais. E não passa.", scores: { culposa: 3 }, pill: "Ora e não passa" },
+      { value: "cenarios", label: "Imagino cenários ruins. Crio diálogos difíceis na cabeça antes de acontecer.", scores: { antecipatoria: 3 }, pill: "Antecipação" },
     ],
   },
   {
@@ -538,6 +539,71 @@ if (import.meta.env?.DEV) {
     });
   });
 }
+
+// ── G1-v2: Reações da guia por opção (voz feminina, não fórmula) ──
+
+const GUIDE_REACTIONS: Record<string, Record<string, string>> = {
+  sintoma: {
+    madrugada: "3h da manhã… eu sei exatamente o que é isso. Anotei 🤍",
+    tensao: "Esse cansaço que dormir não resolve. Eu ouvi 🤍",
+    estomago: "O corpo fala o que a boca segura. Anotei 🤍",
+    peito: "Esse aperto tem explicação — já chego nela 🤍",
+    todos: "Tudo ao mesmo tempo… você está carregando muito. Anotei 🤍",
+  },
+  comportamento: {
+    checagem: "Checar é o seu jeito de proteger. Entendi 🤍",
+    "aceitar-mais": "Dizer não parece egoísmo pra você, né? Anotei 🤍",
+    oracao: "Você ora… e não passa. Isso tem nome — já te mostro 🤍",
+    cenarios: "Sua mente ensaia a dor antes da hora. Eu vi 🤍",
+  },
+  frase: {
+    soltar: "\u201CSe eu soltar…\u201D — quanta coisa você segura sozinha. 🤍",
+    "nao-parar": "\u201CTem gente dependendo de mim.\u201D Eu sei o peso dessa frase 🤍",
+    insuficiente: "\u201CNunca sou suficiente.\u201D Essa dói até de ler. Obrigada pela coragem 🤍",
+    pior: "\u201CE se acontecer o pior?\u201D Vamos desarmar esse alarme juntas 🤍",
+  },
+  espiritual: {
+    "mente-nao-desliga": "Orar com a mente ligada é exaustivo. Entendi 🤍",
+    "sirvo-muito": "Servir tanto e sentir tão pouco… anotei 🤍",
+    "perdao-constante": "Pedir perdão o tempo todo cansa a alma. Eu ouvi 🤍",
+    "medo-abandono": "Esse medo não é falta de fé. Já te explico 🤍",
+  },
+  risco: {
+    funcionando: "Eu ouvi. E \u2018funcionando\u2019 às vezes é o jeito mais cansado de existir.",
+    dificil: "Obrigada por ser honesta. Seguimos juntas, no seu ritmo.",
+    sombrios: "Obrigada pela coragem de marcar isso. Aqui ninguém te julga.",
+    crise: "Eu ouvi você. Vamos com calma — uma pergunta de cada vez.",
+  },
+};
+
+const GUIDE_REACTIONS_GENERIC: Record<string, string> = {
+  situacao: "Entendi seu contexto. Isso muda como eu leio todo o resto 🤍",
+  desejo: "É exatamente pra isso que o seu resultado aponta 🤍",
+};
+
+/** Retorna a reação da guia + duração em ms.
+ *  G1-v3: sem emoji (🤍) — o fio dourado é o carinho. Duração: 1.6s (2.2s pra frase). */
+export function getGuideReaction(questionKey: string, value: string): { text: string; durationMs: number } {
+  const strip = (s: string) => s.replace(/\s*🤍\s*$/, "").trim();
+  const perOption = GUIDE_REACTIONS[questionKey]?.[value];
+  if (perOption) {
+    return { text: strip(perOption), durationMs: questionKey === "frase" ? 2200 : 1600 };
+  }
+  const generic = GUIDE_REACTIONS_GENERIC[questionKey];
+  if (generic) {
+    return { text: strip(generic), durationMs: 1600 };
+  }
+  return { text: strip(CONFIRMATIONS[Math.floor(Math.random() * CONFIRMATIONS.length)]), durationMs: 1600 };
+}
+
+// G4-v2: Estatísticas reais por sintoma (base ~70 leads jun/2026)
+export const SYMPTOM_STATS: Record<string, string> = {
+  todos: "4 em cada 10 mulheres que fazem esse diagnóstico marcam \u2018tudo isso\u2019. Você não está exagerando.",
+  tensao: "3 em cada 10 sentem esse mesmo cansaço no corpo. Você não está sozinha.",
+  madrugada: "2 em cada 10 acordam nesse mesmo horário. Não é coincidência.",
+  peito: "Você não é a única — e o que você sente tem padrão e tem caminho.",
+  estomago: "Você não é a única — e o que você sente tem padrão e tem caminho.",
+};
 
 /** Retorna a fala da guia ANTES da pergunta, considerando respostas anteriores. */
 export function getTransition(qIndex: number, answers: Record<string, string>): string | null {
