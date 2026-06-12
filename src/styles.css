@@ -45,15 +45,20 @@
   --border: #EFE6E0;
 }
 
+/* Reset: full-width without masking overflow (causes are fixed at source) */
+html, body, #root {
+  width: 100%;
+}
+
+/* iOS Safari auto-zoom prevention: inputs < 16px trigger zoom on focus.
+   max(1rem, 16px) garante 16px mínimo sem quebrar rem scaling. */
+input, select, textarea {
+  font-size: max(1rem, 16px);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
-  }
-
-  html, body {
-    /* Mata scroll lateral acidental sem criar scroll container (clip > hidden). */
-    overflow-x: clip;
-    max-width: 100vw;
   }
 
   body {
@@ -81,9 +86,9 @@
   30% { opacity: 1; transform: translateY(-3px); }
 }
 @keyframes rdp-bubble-in {
-  0% { opacity: 0; transform: scale(0.6) translate(-12px, 12px); transform-origin: bottom left; }
-  60% { opacity: 1; transform: scale(1.03) translate(0, 0); }
-  100% { opacity: 1; transform: scale(1) translate(0, 0); }
+  0% { opacity: 0; transform: scale(0.92) translateY(6px); transform-origin: bottom left; }
+  60% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes rdp-particle {
   0% { opacity: 0; transform: translateY(20px) scale(0.8); }
@@ -114,8 +119,12 @@
 .rdp-shadow-soft {
   box-shadow: 0 8px 30px -12px rgba(68, 58, 82, 0.18);
 }
+.rdp-option-picked {
+  border-color: var(--gold-warm);
+  box-shadow: 0 0 0 3px rgba(232,201,160,0.25), 0 10px 26px -14px rgba(68,58,82,0.4);
+}
 .rdp-shadow-bubble {
-  box-shadow: 0 6px 24px -10px rgba(68, 58, 82, 0.22);
+  box-shadow: 0 4px 14px -6px rgba(68, 58, 82, 0.18);
 }
 
 /* Botao roxo que vira gradiente (rosa -> lavanda -> dourado) no hover/active */

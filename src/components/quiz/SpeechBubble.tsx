@@ -69,15 +69,15 @@ export function SpeechBubble({
   const showCursor = !instant && display.length < text.length;
 
   return (
-    <div className="relative max-w-xl">
+    <div className="relative max-w-full overflow-hidden">
       <div
         key={`${resetKey}-${text}`}
         className="rdp-bubble-in rdp-shadow-bubble relative rounded-[20px] rounded-tl-md bg-white px-5 py-4 sm:px-6 sm:py-5"
       >
-        {/* tail */}
+        {/* tail — kept inside bounds; parent clips the overshoot */}
         <span
           aria-hidden
-          className="absolute -left-2 top-3 h-4 w-4 rotate-45 bg-white"
+          className="absolute -left-1.5 top-3 h-4 w-4 rotate-45 bg-white"
           style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
         />
         {typing ? (
@@ -88,7 +88,7 @@ export function SpeechBubble({
           </span>
         ) : (
           <p
-            className={`font-display text-xl leading-snug text-[color:var(--deep-purple)] sm:text-[26px] ${
+            className={`font-display text-lg leading-snug text-[color:var(--deep-purple)] sm:text-[26px] ${
               italic ? "italic" : ""
             }`}
           >

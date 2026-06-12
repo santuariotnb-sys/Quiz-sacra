@@ -582,18 +582,18 @@ const GUIDE_REACTIONS_GENERIC: Record<string, string> = {
 };
 
 /** Retorna a reação da guia + duração em ms.
- *  G1-v3: sem emoji (🤍) — o fio dourado é o carinho. Duração: 1.6s (2.2s pra frase). */
+ *  Duração: 3.5s padrão, 4.5s pra frase (a mais pesada). */
 export function getGuideReaction(questionKey: string, value: string): { text: string; durationMs: number } {
   const strip = (s: string) => s.replace(/\s*🤍\s*$/, "").trim();
   const perOption = GUIDE_REACTIONS[questionKey]?.[value];
   if (perOption) {
-    return { text: strip(perOption), durationMs: questionKey === "frase" ? 2200 : 1600 };
+    return { text: strip(perOption), durationMs: questionKey === "frase" ? 4500 : 3500 };
   }
   const generic = GUIDE_REACTIONS_GENERIC[questionKey];
   if (generic) {
-    return { text: strip(generic), durationMs: 1600 };
+    return { text: strip(generic), durationMs: 3500 };
   }
-  return { text: strip(CONFIRMATIONS[Math.floor(Math.random() * CONFIRMATIONS.length)]), durationMs: 1600 };
+  return { text: strip(CONFIRMATIONS[Math.floor(Math.random() * CONFIRMATIONS.length)]), durationMs: 3500 };
 }
 
 // G4-v2: Estatísticas reais por sintoma (base ~70 leads jun/2026)
