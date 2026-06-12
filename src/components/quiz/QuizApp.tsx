@@ -39,6 +39,7 @@ const KIRVANO_URL =
 // Feature flag: VITE_USE_CHECKOUT_SACRA=true → redireciona pro /checkout Sacra
 // Rollback: remover a var ou setar false → volta pro Kirvano em 1 redeploy
 const USE_CHECKOUT_SACRA = import.meta.env.VITE_USE_CHECKOUT_SACRA === "true";
+const QUIZ_VERSION = "v2-onda0";
 const CHECKOUT_SACRA_URL =
   (import.meta.env.VITE_CHECKOUT_SACRA_URL as string | undefined) ||
   "https://rotinadepaz.com.br/checkout";
@@ -72,37 +73,51 @@ function parsePreview(): {
   };
 }
 
-// Persistência de sessão: refresh em result/offer não joga a lead pro início.
-const SAVED_KEY = "sacra_quiz_state_v2";
+// Persistência de sessão: localStorage com TTL 48h (sobrevive fechar aba).
+// Retoma de onde parou — inclusive no meio das perguntas.
+const SAVED_KEY = "sacra_quiz_state_v3";
+const SAVED_TTL_MS = 48 * 60 * 60 * 1000; // 48h
+
 type SavedState = {
-  stage: "contact" | "result" | "offer";
+  stage: Stage;
+  qIndex?: number;
   answers: Record<string, string>;
   name: string;
   whatsapp: string;
   email: string;
+  savedAt: number; // timestamp pra TTL
 };
+
 function loadSavedState(): SavedState | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(SAVED_KEY);
+    const raw = localStorage.getItem(SAVED_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
+    // TTL check: expirado → limpa e recomeça
+    if (typeof s?.savedAt === "number" && Date.now() - s.savedAt > SAVED_TTL_MS) {
+      localStorage.removeItem(SAVED_KEY);
+      return null;
+    }
+    const validStages: Stage[] = ["questions", "contact", "result", "offer"];
     if (
-      (s?.stage === "contact" || s?.stage === "result" || s?.stage === "offer") &&
+      validStages.includes(s?.stage) &&
       s?.answers &&
       typeof s.answers === "object"
     ) {
       return {
         stage: s.stage,
+        qIndex: typeof s.qIndex === "number" && s.qIndex >= 0 && s.qIndex < QUESTIONS.length ? s.qIndex : undefined,
         answers: s.answers,
         name: typeof s.name === "string" ? s.name : "",
         whatsapp: typeof s.whatsapp === "string" ? s.whatsapp : "",
         email: typeof s.email === "string" ? s.email : "",
+        savedAt: s.savedAt,
       };
     }
     return null;
   } catch {
-    return null; // JSON corrompido → ignora, segue fluxo normal
+    return null;
   }
 }
 
@@ -120,7 +135,7 @@ export function QuizApp() {
     preview ? preview.stage : saved ? saved.stage : "hero",
   );
   const [name, setName] = useState(saved?.name ?? "");
-  const [qIndex, setQIndex] = useState(0);
+  const [qIndex, setQIndex] = useState(saved?.qIndex ?? 0);
   const qIndexRef = useRef(qIndex);
   qIndexRef.current = qIndex;
   const answeringRef = useRef(false);
@@ -165,6 +180,7 @@ export function QuizApp() {
         p_session_id: getOrCreateExternalId(),
         p_stage: stage,
         p_question_key: questionKey ?? null,
+        p_version: QUIZ_VERSION,
       })).catch(() => {});
     } catch { /* never block quiz */ }
   };
@@ -185,17 +201,19 @@ export function QuizApp() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [stage]);
 
-  // Persiste só em contact/result/offer (nunca durante o quiz). Atualiza ao navegar entre elas.
+  // Persiste em localStorage (sobrevive fechar aba). Salva em questions + contact/result/offer.
   useEffect(() => {
-    if (preview) return; // preview de dev não persiste
-    if (stage !== "contact" && stage !== "result" && stage !== "offer") return;
+    if (preview) return;
+    if (stage === "hero" || stage === "loading") return;
     try {
-      sessionStorage.setItem(SAVED_KEY, JSON.stringify({ stage, answers, name, whatsapp, email }));
+      localStorage.setItem(SAVED_KEY, JSON.stringify({
+        stage, qIndex, answers, name, whatsapp, email, savedAt: Date.now(),
+      }));
     } catch {
       // armazenamento indisponível → ignora, não quebra
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, answers, name, whatsapp, email]);
+  }, [stage, qIndex, answers, name, whatsapp, email]);
 
   const result = useMemo(() => {
     if (stage !== "contact" && stage !== "result" && stage !== "offer") return null;
@@ -672,8 +690,9 @@ function QuestionScreen({
   encouragement: string | null;
   answers: Record<string, string>;
 }) {
-  const q = QUESTIONS[qIndex];
-  const transition = getTransition(qIndex, answers);
+  const safeIndex = qIndex >= 0 && qIndex < QUESTIONS.length ? qIndex : 0;
+  const q = QUESTIONS[safeIndex];
+  const transition = getTransition(safeIndex, answers);
   const [showOptions, setShowOptions] = useState(false);
   const [showPrompt, setShowPrompt] = useState(!transition);
 
