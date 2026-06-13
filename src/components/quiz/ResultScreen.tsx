@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { GuideAvatar } from "./Avatar";
 import { SpeechBubble } from "./SpeechBubble";
 import { AlarmeDiagram } from "./AlarmeDiagram";
@@ -61,18 +61,32 @@ export function ResultScreen({
   const mechanismRef = useRef<HTMLDivElement>(null);
   const [showSticky, setShowSticky] = useState(false);
 
+  // CTA principal: sticky recolhe quando este fica visível
+  const ctaRef = useRef<HTMLDivElement>(null);
+  const [ctaVisible, setCtaVisible] = useState(false);
+
   useEffect(() => {
     const el = mechanismRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        // Mostra sticky quando o mecanismo SAI da viewport (scroll passou)
         if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
           setShowSticky(true);
           io.disconnect();
         }
       },
       { threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const el = ctaRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setCtaVisible(entry.isIntersecting),
+      { threshold: 0.5 },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -224,7 +238,7 @@ export function ResultScreen({
 
         {/* CTA principal */}
         <Reveal className="mt-8" pop>
-          <div className="text-center">
+          <div ref={ctaRef} className="text-center">
             <button
               onClick={onContinue}
               className="rdp-btn-gradient-hover inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-[21px] text-[15px] font-semibold uppercase tracking-[0.14em] text-white"
@@ -240,23 +254,27 @@ export function ResultScreen({
         </Reveal>
       </div>
 
-      {/* ═══ CTA STICKY (aparece após batida 4) ═══ */}
-      {showSticky && (
-        <motion.div
-          initial={{ y: 80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3, ease: "easeOut" }}
-          className="fixed bottom-0 left-0 right-0 z-50 border-t border-[color:var(--gold-warm)]/20 bg-[color:var(--milk)] px-4 pb-[env(safe-area-inset-bottom,8px)] pt-3"
-        >
-          <button
-            onClick={onContinue}
-            className="rdp-btn-gradient-hover flex w-full items-center justify-center gap-2 rounded-full px-6 py-[18px] text-[14px] font-semibold uppercase tracking-[0.12em] text-white"
+      {/* ═══ CTA STICKY (aparece após batida 4, recolhe quando CTA principal visível) ═══ */}
+      <AnimatePresence>
+        {showSticky && !ctaVisible && (
+          <motion.div
+            key="sticky-cta"
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="fixed bottom-0 left-0 right-0 z-50 border-t border-[color:var(--gold-warm)]/20 bg-[color:var(--milk)] px-4 pb-[env(safe-area-inset-bottom,8px)] pt-3"
           >
-            <span>{bridgeCopy.cta}</span>
-            <span aria-hidden>{"\u2192"}</span>
-          </button>
-        </motion.div>
-      )}
+            <button
+              onClick={onContinue}
+              className="rdp-btn-gradient-hover flex w-full items-center justify-center gap-2 rounded-full px-6 py-[18px] text-[14px] font-semibold uppercase tracking-[0.12em] text-white"
+            >
+              <span>{bridgeCopy.cta}</span>
+              <span aria-hidden>{"\u2192"}</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.section>
   );
 }
