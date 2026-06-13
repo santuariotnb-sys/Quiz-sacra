@@ -171,12 +171,25 @@ export type ArchetypeResult = {
   seal: string;
 };
 
+export type MechanismData = {
+  hook: string;
+  alarmOn: [string, string, string];
+  alarmOff: [string, string, string];
+};
+
+export type MirrorChecks = {
+  symptom: string;
+  behavior: string;
+};
+
 export type ArchetypeData = {
   id: Archetype;
   name: string;
   subtitle: string;
   tagline: string;
   result: ArchetypeResult;
+  mechanism: MechanismData;
+  mirrorChecks: MirrorChecks;
   /** HTML rico — renderizado via dangerouslySetInnerHTML. */
   mechanismHtml: string;
   /** HTML rico do bloco "desarme" (verdade + versículo). */
@@ -208,6 +221,23 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       verseRef: "Salmos 121",
       verseText: "Aquele que te guarda não dormirá nem cochilará.",
       seal: "O Guarda já está acordado.\nVocê está acordada de graça.",
+    },
+    mechanism: {
+      hook: "Você tentou orar mais, cansar mais, suplemento, chá. Mas ninguém te mostrou o interruptor: o seu corpo está com o alarme ligado — e alarme não se desliga com esforço. Se desliga com sinal.",
+      alarmOn: [
+        "mente ligada às 3h da manhã",
+        "sono leve — qualquer barulho acorda",
+        "corpo em plantão mesmo sem perigo",
+      ],
+      alarmOff: [
+        "mente quieta ao deitar",
+        "sono contínuo — a noite inteira",
+        "corpo solto, em repouso real",
+      ],
+    },
+    mirrorChecks: {
+      symptom: "Você acorda às 3h porque seu corpo aprendeu que se desligar, algo escapa",
+      behavior: "Você diz “tudo bem” — e volta a vigiar",
     },
     chapters: [
       {
@@ -268,6 +298,23 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
         "Vinde a mim, todos os que estais cansados e sobrecarregados, e eu vos aliviarei.",
       seal: "O convite é específico pra você.\nNão é pra se esforçar mais — é pra parar.",
     },
+    mechanism: {
+      hook: "Você tentou ter mais força, mais disciplina, mais disposição. Mas ninguém te mostrou o interruptor: o seu corpo está com o alarme ligado — e alarme não se desliga com esforço. Se desliga com sinal.",
+      alarmOn: [
+        "ombro, pescoço e mandíbula travados",
+        "culpa ao parar — como se descansar fosse errado",
+        "cansaço que dormir não alcança",
+      ],
+      alarmOff: [
+        "ombro solto, mandíbula relaxada",
+        "parar sem culpa — descanso como direito",
+        "acordar leve, corpo inteiro descansado",
+      ],
+    },
+    mirrorChecks: {
+      symptom: "O cansaço mora onde dormir não alcança: ombro, pescoço, mandíbula",
+      behavior: "Você sorri, diz “tudo bem” — e segura tudo por dentro",
+    },
     chapters: [
       {
         num: "05",
@@ -326,6 +373,23 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       verseText: "Já não há condenação para os que estão em Cristo Jesus.",
       seal: "Já não há.\nA condenação que você sente vem de uma régua que confundiu sofrimento com santidade.",
     },
+    mechanism: {
+      hook: "Você tentou orar mais, servir mais, se cobrar mais. Mas ninguém te mostrou o interruptor: o seu corpo está com o alarme ligado — e alarme não se desliga com esforço. Se desliga com sinal.",
+      alarmOn: [
+        "peito apertado ao acordar",
+        "voz interna que diz “cristã de verdade não sente isso”",
+        "culpa por sentir — culpa da culpa",
+      ],
+      alarmOff: [
+        "peito leve ao abrir os olhos",
+        "orar sem revisar se “orou direito”",
+        "sentir paz sem se culpar por sentir paz",
+      ],
+    },
+    mirrorChecks: {
+      symptom: "Você ora, lê, tenta confiar — e acorda com o peito apertado",
+      behavior: "Você se culpa por estar sentindo, como se cristã de verdade não tremesse",
+    },
     chapters: [
       {
         num: "02",
@@ -383,6 +447,23 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       verseRef: "Jeremias 29",
       verseText: "Eu sei os planos que tenho para vocês — planos de paz, e não de mal.",
       seal: "O plano já existe.\nVocê está vivendo num futuro que ainda não foi escrito por Deus.",
+    },
+    mechanism: {
+      hook: "Você tentou pensar positivo, confiar mais, parar de imaginar. Mas ninguém te mostrou o interruptor: o seu corpo está com o alarme ligado — e alarme não se desliga com esforço. Se desliga com sinal.",
+      alarmOn: [
+        "mente rodando 5 cenários antes de levantar",
+        "cada dor vira doença, cada atraso vira tragédia",
+        "corpo exausto de viver o que ainda não aconteceu",
+      ],
+      alarmOff: [
+        "acordar no presente — sem rodar o futuro",
+        "dor é só dor, atraso é só atraso",
+        "energia pra viver o dia que chegou",
+      ],
+    },
+    mirrorChecks: {
+      symptom: "Antes de levantar, sua mente já correu o dia inteiro",
+      behavior: "Você imagina o pior — e gasta toda a energia antes de sair da cama",
     },
     chapters: [
       {
@@ -488,6 +569,28 @@ export const DESIRE_BEAT_FALLBACK: DesireBeat = {
   closing: "<strong>Não é fé a mais que falta.</strong> É o seu corpo recebendo o sinal certo — <strong>14 sinais em 7 dias</strong>, na ordem certa.",
   cta: "Quero minha paz",
 };
+
+export type BridgeCopy = {
+  eyebrow: string;
+  headline: string;
+  bridge: string;
+  cta: string;
+};
+
+export function getBridgeCopy(archetype: ArchetypeData, desire?: string): BridgeCopy {
+  const beat = (desire && DESIRE_BEAT[desire]) || DESIRE_BEAT_FALLBACK;
+  const cta = (desire && DESIRE_CTA[desire]) || beat.cta;
+  const quote = (desire && DESIRE_QUOTE[desire]) || null;
+
+  return {
+    eyebrow: `O caminho do padr\u00e3o ${archetype.name}`,
+    headline: beat.title,
+    bridge: quote
+      ? `Montei o caminho de 7 dias pro padr\u00e3o ${archetype.name}, focado em ${quote}`
+      : `Montei o caminho de 7 dias pro padr\u00e3o ${archetype.name}.`,
+    cta,
+  };
+}
 
 export function computeArchetype(
   answers: Record<string, string>,
