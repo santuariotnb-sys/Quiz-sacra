@@ -742,7 +742,7 @@ function HeroScreen({
         >
           {name.trim().length >= 2
             ? <><span>Pronta, {name.trim().split(/\s/)[0]}? Começar</span> <span aria-hidden>→</span></>
-            : <><span>Quero meu diagnóstico</span> <span aria-hidden>→</span></>
+            : <><span>Descobrir meu padrão</span> <span aria-hidden>→</span></>
           }
         </motion.button>
 
