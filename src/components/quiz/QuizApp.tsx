@@ -6,8 +6,6 @@ import { SpeechBubble } from "./SpeechBubble";
 import { EmotionalProgress } from "./EmotionalProgress";
 import {
   ARCHETYPES,
-  DESIRE_BEAT,
-  DESIRE_BEAT_FALLBACK,
   DESIRE_CTA,
   DESIRE_QUOTE,
   ENCOURAGEMENTS,
@@ -19,6 +17,7 @@ import {
   type Archetype,
   type ArchetypeData,
 } from "@/data/quiz";
+import { ResultScreen } from "./ResultScreen";
 import { Component, type ErrorInfo } from "react";
 import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
@@ -40,7 +39,7 @@ const KIRVANO_URL =
 // Feature flag: VITE_USE_CHECKOUT_SACRA=true → redireciona pro /checkout Sacra
 // Rollback: remover a var ou setar false → volta pro Kirvano em 1 redeploy
 const USE_CHECKOUT_SACRA = import.meta.env.VITE_USE_CHECKOUT_SACRA === "true";
-const QUIZ_VERSION = "v2-onda1";
+const QUIZ_VERSION = "v2-resultado";
 const CHECKOUT_SACRA_URL =
   (import.meta.env.VITE_CHECKOUT_SACRA_URL as string | undefined) ||
   "https://rotinadepaz.com.br/checkout";
@@ -69,7 +68,7 @@ function parsePreview(): {
   return {
     archetype: a as Archetype,
     stage: s,
-    desire: p.get("desire") ?? undefined,
+    desire: p.get("desire") ?? "dormir",
     situation: p.get("situation") ?? undefined,
   };
 }
@@ -1227,245 +1226,7 @@ function ContactGateScreen({
   );
 }
 
-/* ============================== RESULT ============================== */
-
-// Reveal-on-scroll reutilizável (respeita prefers-reduced-motion via framer-motion).
-function Reveal({ children, className, pop }: { children: ReactNode; className?: string; pop?: boolean }) {
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 26, ...(pop ? { scale: 0.97 } : {}) }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, amount: 0.16 }}
-      transition={{ duration: 0.9, ease: [0.2, 0.7, 0.2, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function ScrollCue() {
-  return (
-    <div className="mt-8 flex flex-col items-center gap-2.5">
-      <span className="text-center text-[11px] font-medium uppercase tracking-[0.24em] text-[color:var(--gold-warm)]">
-        Role e descubra
-      </span>
-      <div className="rdp-bob flex h-[38px] w-[22px] flex-col items-center">
-        <span className="h-[26px] w-px bg-gradient-to-b from-[color:var(--gold-warm)] to-transparent" />
-        <span className="mt-auto h-2 w-2 rotate-45 border-b-[1.5px] border-r-[1.5px] border-[color:var(--gold-warm)]" />
-      </div>
-    </div>
-  );
-}
-
-function ResultScreen({
-  archetype,
-  bridge,
-  name,
-  desire,
-  onContinue,
-}: {
-  archetype: ArchetypeData;
-  bridge: string | null;
-  name: string;
-  desire?: string;
-  onContinue: () => void;
-}) {
-  const r = archetype.result;
-  const beat = (desire && DESIRE_BEAT[desire]) || DESIRE_BEAT_FALLBACK;
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.6 }}
-      className="mx-auto max-w-xl overflow-x-clip px-5 pb-16 pt-10 sm:px-8"
-    >
-      {/* 1. Saudação */}
-      <div className="flex items-start gap-3 sm:gap-5">
-        <GuideAvatar size="corner" />
-        <div className="min-w-0 flex-1 pt-1">
-          <SpeechBubble
-            text={`Encontrei${name ? `, ${name}` : ""}. Você é a ${archetype.name}.`}
-            typingDelay={400}
-          />
-        </div>
-      </div>
-
-      {/* 2. Arquétipo — entrada animada (archIn) */}
-      <div className="mt-10 text-center">
-        <p className="flex items-center justify-center gap-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]"
-           style={{ animation: "fadeIn .8s .2s ease both" }}>
-          <span className="text-[color:var(--gold)]">✦</span>
-          Padrão raiz identificado
-          <span className="text-[color:var(--gold)]">✦</span>
-        </p>
-        <h1 className="rdp-arch-in mt-2 font-display font-bold leading-[0.95] text-[color:var(--deep-purple)]"
-            style={{ fontSize: "clamp(1.6rem, 7vw, 4rem)" }}>
-          {archetype.name}
-        </h1>
-        <p className="mt-2 font-display text-[21px] italic text-[color:var(--amethyst)]"
-           style={{ animation: "fadeIn .8s .7s ease both" }}>
-          {r.tagline}
-        </p>
-      </div>
-
-      {/* 3. Scroll cue + seta pulsante */}
-      <ScrollCue />
-
-      {/* 4. Bridge (situation-specific) */}
-      {bridge && (
-        <Reveal className="mt-9">
-          <p className="mx-auto max-w-md text-center font-display text-[23px] italic leading-[1.4] text-[color:var(--deep-purple)]">
-            {bridge}
-          </p>
-        </Reveal>
-      )}
-
-      {/* 5. O que está acontecendo */}
-      <Reveal className="mt-8">
-        <h2 className="flex items-center gap-2 font-display text-[27px] font-semibold text-[color:var(--deep-purple)]">
-          <span className="text-[color:var(--gold-warm)]">›</span>O que está acontecendo
-        </h2>
-        <p
-          className="mt-3 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
-          dangerouslySetInnerHTML={{ __html: r.happening }}
-        />
-        <blockquote className="mt-5 border-l-[3px] border-[color:var(--gold)] pl-5 font-display text-[21px] italic leading-[1.4] text-[color:var(--deep-purple)]">
-          "{r.mirror}"
-        </blockquote>
-      </Reveal>
-
-      {/* 6. Label "A verdade sobre isso" */}
-      <Reveal className="mt-6">
-        <p className="text-center font-display text-[18px] italic text-[color:var(--amethyst)]">
-          A verdade sobre isso
-        </p>
-      </Reveal>
-
-      {/* 7. Card 1 — Verdade (fundo texturizado dourado) */}
-      <Reveal className="mt-4" pop>
-        <section className="rdp-card-verdade rounded-[18px] px-7 py-8 text-center sm:px-9">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]">
-            A verdade que você precisa ouvir
-          </p>
-          <h3 className="mt-3 font-display text-[30px] font-semibold leading-[1.15] text-[color:var(--deep-purple)]">
-            {r.truthTitle}{" "}
-            <em className="italic text-[color:var(--gold-warm)]">{r.truthTitleEm}</em>
-          </h3>
-          <p
-            className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
-            dangerouslySetInnerHTML={{ __html: r.truthBody }}
-          />
-          {/* Versículo com entrada própria */}
-          <motion.div
-            className="mt-5"
-            initial={{ opacity: 0, y: 14, scale: 0.96 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1, delay: 0.15, ease: "easeOut" }}
-          >
-            <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--gold-warm)]">
-              {r.verseRef}
-            </p>
-            <p className="mt-1.5 font-display text-[22px] italic text-[color:var(--deep-purple)]">
-              "{r.verseText}"
-            </p>
-          </motion.div>
-          <p className="mt-4 whitespace-pre-line font-display text-[19px] italic leading-relaxed text-[color:var(--amethyst)]">
-            {r.seal}
-          </p>
-        </section>
-      </Reveal>
-
-      {/* 8. Card 2 — DESEJO / A virada (keyado pelo desire) */}
-      <Reveal className="mt-7" pop>
-        <section className="rdp-card-desire rounded-[18px] px-7 py-8 text-center sm:px-9">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]">
-            {beat.eyebrow}
-          </p>
-          <h2 className="mt-2 font-display text-[32px] font-semibold leading-[1.12] text-[color:var(--deep-purple)]">
-            {beat.title}
-          </h2>
-          <p
-            className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
-            dangerouslySetInnerHTML={{ __html: beat.body }}
-          />
-          <p
-            className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
-            dangerouslySetInnerHTML={{ __html: beat.closing }}
-          />
-        </section>
-      </Reveal>
-
-      {/* 9. Capítulos em destaque + CTA pulsante */}
-      <Reveal className="mt-8" pop>
-        <section className="rdp-madefor rounded-[20px] px-6 pb-7 pt-8">
-          <span className="rdp-madefor-badge">✦ feito pro seu padrão ✦</span>
-          <p className="mt-2 text-center text-[15px] leading-relaxed text-[color:var(--amethyst)]">
-            Dois capítulos do método foram desenhados{" "}
-            <strong className="font-semibold text-[color:var(--deep-purple)]">especificamente pra você</strong>
-            {" "}— na ordem que o seu corpo precisa:
-          </p>
-          <div className="mt-5 space-y-3">
-            {archetype.chapters.map((c, i) => (
-              <div
-                key={`${c.num}-${c.period}-${i}`}
-                className="flex gap-3 rounded-[14px] border border-[#ecdfc7] bg-white p-4 shadow-[0_10px_26px_-20px_rgba(184,146,78,.6)]"
-              >
-                <span className="shrink-0 font-display text-[28px] font-semibold text-[color:var(--gold-warm)]">
-                  {c.num}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--gold-warm)]">
-                    {c.period}
-                  </p>
-                  <p className="font-display text-[20px] font-semibold text-[color:var(--deep-purple)]">
-                    {c.title}
-                  </p>
-                  <p className="mt-1 text-[15.5px] leading-relaxed text-[color:var(--amethyst)]">
-                    {c.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA pulsante */}
-          <div className="mt-6 text-center">
-            <button
-              onClick={onContinue}
-              className="rdp-btn-gradient-hover inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-[21px] text-[15px] font-semibold uppercase tracking-[0.14em] text-white"
-              style={{ animation: "rdp-cta-pulse 2.4s ease-in-out infinite" }}
-            >
-              <span>{beat.cta}</span>
-              <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
-            </button>
-            <p className="mt-3 text-[12.5px] text-[color:var(--amethyst)]">
-              Sem compromisso · garantia de 7 dias
-            </p>
-          </div>
-        </section>
-      </Reveal>
-
-      {/* 10. Disclaimers (fim, discretos) */}
-      <Reveal className="rdp-fineprint">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--gold-warm)]">
-          Com honestidade, pra você decidir bem
-        </p>
-        <p className="mt-2 text-[15px] leading-relaxed text-[color:var(--amethyst)]">
-          <strong className="font-semibold text-[color:var(--deep-purple)]">O que esperar:</strong>{" "}
-          {archetype.esperar}
-        </p>
-        <p className="mt-2 text-[15px] leading-relaxed text-[color:var(--amethyst)]">
-          <strong className="font-semibold text-[color:var(--deep-purple)]">O que não esperar:</strong>{" "}
-          {archetype.naoEsperar}
-        </p>
-      </Reveal>
-    </motion.section>
-  );
-}
+/* ============================== RESULT (extraído para ./ResultScreen.tsx) ============================== */
 
 /* ============================== OFFER ============================== */
 
@@ -1893,6 +1654,21 @@ function OfferScreen({
           </button>
           <p className="mt-4 text-[11px] sm:text-xs text-[color:var(--amethyst)]">
             🔒 Acesso imediato após pagamento · Pagamento 100% seguro
+          </p>
+        </div>
+
+        {/* O QUE ESPERAR / NÃO ESPERAR (migrado do resultado) */}
+        <div className="mx-5 mb-6 sm:mx-10">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--gold-warm)]">
+            Com honestidade, pra você decidir bem
+          </p>
+          <p className="mt-2 text-[15px] leading-relaxed text-[color:var(--amethyst)]">
+            <strong className="font-semibold text-[color:var(--deep-purple)]">O que esperar:</strong>{" "}
+            {archetype.esperar}
+          </p>
+          <p className="mt-2 text-[15px] leading-relaxed text-[color:var(--amethyst)]">
+            <strong className="font-semibold text-[color:var(--deep-purple)]">O que não esperar:</strong>{" "}
+            {archetype.naoEsperar}
           </p>
         </div>
 
