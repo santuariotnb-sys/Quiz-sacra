@@ -103,6 +103,7 @@ export async function saveTrackingSession(externalId: string): Promise<void> {
     p_fbc: fbc ?? null,
     p_fbclid: fbclid ?? null,
     p_user_agent: userAgent,
+    p_client_ip: null, // client não tem acesso ao IP; resolvido server-side
   });
   // Logar (não engolir): essa sessão alimenta o fbp/fbc do CAPI server. Falha silenciosa
   // aqui degrada o match quality de TODAS as compras sem ninguém perceber.
