@@ -91,6 +91,11 @@ export function getMetaClickData(): MetaClickData {
  * Fire-and-forget: nunca bloqueia o fluxo principal.
  */
 export async function saveTrackingSession(externalId: string): Promise<void> {
+  // Domain guard: não salvar sessões de dev/preview
+  if (typeof window !== "undefined" &&
+      !["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) {
+    return;
+  }
   const sb = getSupabase();
   if (!sb) return;
 
@@ -122,6 +127,12 @@ export function trackInitiateCheckout(
 ): Promise<void> {
   return new Promise((resolve) => {
     try {
+      // Domain guard: não disparar eventos em dev/preview
+      if (typeof window !== "undefined" &&
+          !["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) {
+        resolve();
+        return;
+      }
       const fbq = (window as any).fbq;
       if (!fbq) {
         resolve();
@@ -139,7 +150,7 @@ export function trackInitiateCheckout(
       const eventId = `ic_${externalId}_${scope}`;
       const data: Record<string, any> = {
         content_name: extras?.contentName ?? "Rotina de Paz",
-        content_ids: ["rotina_de_paz"],
+        content_ids: ["rotina-de-paz"],
         currency: "BRL",
       };
       if (extras?.value) {

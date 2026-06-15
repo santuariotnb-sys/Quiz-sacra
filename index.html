@@ -14,8 +14,11 @@
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '838169472100225');
-    fbq('track', 'PageView');
+    // Domain guard: só inicializa pixel em produção (evita poluição de teste/dev)
+    if (location.hostname === 'sacra.rotinadepaz.com.br' || location.hostname === 'rotinadepaz.com.br') {
+      fbq('init', '838169472100225');
+      fbq('track', 'PageView');
+    }
     </script>
     <!-- End Meta Pixel Code -->
     <!-- Microsoft Clarity -->
