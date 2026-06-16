@@ -299,11 +299,14 @@ export function QuizApp() {
     const q = QUESTIONS[qIndex];
     if (!q) return;
     try {
-      (window as { fbq?: (...a: unknown[]) => void }).fbq?.("trackCustom", "QuizStep", {
-        step: qIndex + 1,
-        total: QUESTIONS.length,
-        question: q.key,
-      });
+      if (typeof window !== "undefined" &&
+          ["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) {
+        (window as { fbq?: (...a: unknown[]) => void }).fbq?.("trackCustom", "QuizStep", {
+          step: qIndex + 1,
+          total: QUESTIONS.length,
+          question: q.key,
+        });
+      }
     } catch {
       /* analytics nunca bloqueia o quiz */
     }
@@ -358,6 +361,7 @@ export function QuizApp() {
       p_desire: ans["desejo"] ?? null,
       p_situation: ans["situacao"] ?? null,
       p_risk_flag: answersHaveRisk(ans),
+      p_external_id: getOrCreateExternalId(),
       ...Object.fromEntries(
         Object.entries(utms).map(([k, v]) => ["p_" + k, v]),
       ),
@@ -470,21 +474,24 @@ export function QuizApp() {
 
       // Advanced Matching + Lead event (so se tem contato)
       try {
-        const fbq = (window as any).fbq;
-        if (fbq) {
-          const eid = getOrCreateExternalId();
-          const ph = hasWhatsapp ? `55${digits}` : undefined;
-          const PIXEL = "838169472100225";
-          fbq("init", PIXEL, {
-            ...(hasEmail ? { em: email.toLowerCase().trim() } : {}),
-            ...(ph ? { ph } : {}),
-            external_id: eid,
-          });
-          fbq("trackSingle", PIXEL, "Lead", {
-            content_name: "Rotina de Paz",
-            value: 0,
-            currency: "BRL",
-          }, { eventID: `lead_${eid}` });
+        if (typeof window !== "undefined" &&
+            ["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) {
+          const fbq = (window as any).fbq;
+          if (fbq) {
+            const eid = getOrCreateExternalId();
+            const ph = hasWhatsapp ? `55${digits}` : undefined;
+            const PIXEL = "838169472100225";
+            fbq("init", PIXEL, {
+              ...(hasEmail ? { em: email.toLowerCase().trim() } : {}),
+              ...(ph ? { ph } : {}),
+              external_id: eid,
+            });
+            fbq("trackSingle", PIXEL, "Lead", {
+              content_name: "Rotina de Paz",
+              value: 0,
+              currency: "BRL",
+            }, { eventID: `lead_${eid}` });
+          }
         }
       } catch {}
     } finally {
