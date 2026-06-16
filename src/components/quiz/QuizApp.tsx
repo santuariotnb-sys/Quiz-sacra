@@ -156,6 +156,7 @@ export function QuizApp() {
   const [mainAnchorCents, setMainAnchorCents] = useState(19700);
   const [freeInstCount, setFreeInstCount] = useState(3);
   const startTsRef = useRef<number>(Date.now());
+  const firedStagesRef = useRef<Set<string>>(new Set());
   // Promise da criação do lead — submitContact faz await antes de salvar email
   const leadPromiseRef = useRef<Promise<string | null>>(Promise.resolve(null));
 
@@ -343,12 +344,14 @@ export function QuizApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
-  // Funnel: result/offer/contact stage beacons
+  // Funnel: result/offer/contact stage beacons (1× per session per stage)
   useEffect(() => {
     if (preview) return;
-    if (stage === "contact") trackStep("contact_gate");
-    if (stage === "result") trackStep("result");
-    if (stage === "offer") trackStep("offer");
+    const steps: Record<string, string> = { contact: "contact_gate", result: "result", offer: "offer" };
+    const stepName = steps[stage];
+    if (!stepName || firedStagesRef.current.has(stepName)) return;
+    firedStagesRef.current.add(stepName);
+    trackStep(stepName);
   }, [stage]);
 
   async function persistLead(ans: Record<string, string>): Promise<string | null> {
