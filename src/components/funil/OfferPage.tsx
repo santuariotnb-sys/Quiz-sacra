@@ -15,7 +15,7 @@ import {
   ArrowRight,
   Lock,
 } from "lucide-react";
-import { getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
+import { getOrCreateExternalId, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
 import type { OfferContent, OfferBullet } from "@/data/funil";
 import chaveGratidaoMockup from "@/assets/chave-gratidao-mockup.webp";
 
@@ -104,7 +104,7 @@ export function OfferPage({
   // Tracking InitiateCheckout no clique de compra (o modal é aberto pelo upsell.min.js via classe)
   const handleAccept = async () => {
     const externalId = getOrCreateExternalId();
-    void saveTrackingSession(externalId).catch(() => {});
+    sendTrackingBeacon(externalId);
     await trackInitiateCheckout(externalId, {
       contentName: content.offer.title,
       value: parseFloat(content.offer.price.replace(/[^\d,.]/g, "").replace(",", ".")) || undefined,

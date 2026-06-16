@@ -88,7 +88,8 @@ export function getMetaClickData(): MetaClickData {
 
 /**
  * Salva tracking session no Supabase (anon insert).
- * Fire-and-forget: nunca bloqueia o fluxo principal.
+ * Chamada no mount da LP (camada 1) e reforçada no CTA via sendBeacon (camada 2).
+ * Idempotente: upsert por external_id — chamar múltiplas vezes é seguro.
  */
 export async function saveTrackingSession(externalId: string): Promise<void> {
   // Domain guard: não salvar sessões de dev/preview
@@ -113,6 +114,51 @@ export async function saveTrackingSession(externalId: string): Promise<void> {
   // Logar (não engolir): essa sessão alimenta o fbp/fbc do CAPI server. Falha silenciosa
   // aqui degrada o match quality de TODAS as compras sem ninguém perceber.
   if (error) console.error("[tracking] upsert_tracking_session falhou:", error.message);
+}
+
+/**
+ * Camada 2: sendBeacon/fetch-keepalive para salvar tracking session antes de redirect.
+ * Sobrevive a navegação — não bloqueia. Usa REST direto (não o SDK) porque
+ * sendBeacon só aceita plain body, não o protocolo PostgREST/RPC do SDK.
+ */
+export function sendTrackingBeacon(externalId: string): void {
+  if (typeof window === "undefined" ||
+      !["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) {
+    return;
+  }
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (!url || !anon) return;
+
+  const { fbp, fbc, fbclid } = getMetaClickData();
+  const body = JSON.stringify({
+    p_external_id: externalId,
+    p_fbp: fbp ?? null,
+    p_fbc: fbc ?? null,
+    p_fbclid: fbclid ?? null,
+    p_user_agent: navigator.userAgent,
+    p_client_ip: null,
+  });
+
+  const endpoint = `${url}/rest/v1/rpc/upsert_tracking_session`;
+  const headers = {
+    "Content-Type": "application/json",
+    apikey: anon,
+    Authorization: `Bearer ${anon}`,
+  };
+
+  // fetch keepalive survives navigation like sendBeacon, but supports custom headers
+  // (Supabase REST requires apikey header, so plain sendBeacon won't work)
+  try {
+    fetch(endpoint, {
+      method: "POST",
+      headers,
+      body,
+      keepalive: true, // survives page unload like sendBeacon
+    }).catch(() => {});
+  } catch {
+    // Never block — tracking is secondary to the sale
+  }
 }
 
 /**

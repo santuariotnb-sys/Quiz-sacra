@@ -22,7 +22,7 @@ import { Component, type ErrorInfo } from "react";
 import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
-import { captureMetaClickData, getOrCreateExternalId, saveTrackingSession, trackInitiateCheckout } from "@/lib/tracking";
+import { captureMetaClickData, getOrCreateExternalId, saveTrackingSession, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
 import { fetchProductPrices, fetchInstallmentFreeCount, formatBRL } from "@/lib/prices";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import { Check, Sparkles, Volume2, VolumeX } from "lucide-react";
@@ -195,6 +195,8 @@ export function QuizApp() {
   useEffect(() => {
     captureUtms();
     captureMetaClickData();
+    // Camada 1: salva tracking session no mount — quando chegar no CTA já está no banco
+    void saveTrackingSession(getOrCreateExternalId()).catch(() => {});
   }, []);
 
   // Funnel: arrival beacon (once, on hero mount)
@@ -504,8 +506,8 @@ export function QuizApp() {
   async function checkout() {
     if (!archetype) return;
     const externalId = getOrCreateExternalId();
-    // Fire-and-forget: salva tracking session (fbp/fbc/ua) para cruzar no webhook
-    void saveTrackingSession(externalId).catch(() => {});
+    // Camada 2: beacon keepalive — sobrevive ao redirect, não bloqueia
+    sendTrackingBeacon(externalId);
     trackStep("cta");
     // InitiateCheckout com tick de espera para o beacon sair antes do redirect
     await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz", value: mainPriceCents / 100 });
