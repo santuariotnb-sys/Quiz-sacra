@@ -11,7 +11,82 @@ rotina-de-paz-app.vercel.app  → App pós-compra (Círculo da Paz) + Admin Dash
 
 ---
 
-## ⚡ ESTADO ATUAL — Atualização 2026-06-05 (sessão grande: segurança + jurídico + UX)
+## ⚡ ESTADO ATUAL — Atualização 2026-06-16 (auditoria completa: data integrity + Meta CAPI)
+
+> **LEIA PRIMEIRO.** Esta seção prevalece sobre TUDO abaixo. Referência completa: `~/rotina-de-paz-app/DATA-CONTRACT.md` (constituição de dados) + `DIAGNOSTICO-FINAL.md` (13 testes).
+
+### 📊 Data Integrity — FECHADO (13/13 testes PASS)
+
+- **Receita real:** R$666,40 de 5 fontes independentes (zero divergência)
+- **Fonte única:** todas as 18 telas admin leem de `vendas_reais` / `leads_reais` (views canônicas). ZERO query crua de `purchases`/`leads` no admin.
+- **is_test:** denylist de 3 emails de teste (`henrique.voinvicta`, `henrique.vinvicta`, `guilherme.claude`) em `checkout_config.test_emails`. NUNCA por data.
+- **production_start_at:** `2026-06-08` em `checkout_config`.
+- **Join lead↔compra:** `leads.external_id = purchases.src` (qs_*). NUNCA por email (NULL pós-WhatsApp).
+- **RPCs analytics:** todas usam views canônicas + join por external_id/src.
+- **Arquétipo:** de `leads.archetype` (não `quiz_responses.archetype`).
+- **Leads count:** de `leads` (não `quiz_responses` que infla 7x).
+
+### 📡 Meta CAPI — PROVADO AO VIVO (EMQ 8.2/10)
+
+- **CAPI Purchase:** `capi_status='sent'` no webhook_log + Purchase confirmado no Events Manager
+- **Fonte única:** Kirvano pixel+CAPI desligados pelo dono. Só nossa CAPI envia Purchase.
+- **fbc:** fix double-wrap (`meta-capi.server.ts:129-133`). Se `cookies.fbclid` já começa com `fb.` → usa as is. fbclid chega exato (TESTEAUDIT123 provado).
+- **ph:** normalização E.164 (prefixo 55 para BR, remove leading 0).
+- **content_ids:** `["rotina-de-paz"]` consistente em client e server.
+- **Retry:** 1 tentativa rápida + cron diário 10:00 UTC (`/api/cron/capi-retry`). `capi_status` gravado por webhook_log ID (sem race condition em multi-produto).
+- **Domain guard:** pixel init, PageView, Lead, QuizStep, IC, saveTrackingSession — só disparam em `rotinadepaz.com.br` / `sacra.rotinadepaz.com.br`.
+
+### 🔑 Novas tabelas/colunas/views (desde 2026-06-15)
+
+| Objeto | Tipo | Descrição |
+|--------|------|-----------|
+| `checkout_config` | TABLE | Configs globais (production_start_at, test_emails). RLS ON, SELECT-only. |
+| `vendas_reais` | VIEW | Fonte canônica de vendas (confirmed + !is_test + ≥ baseline) |
+| `leads_reais` | VIEW | Fonte canônica de leads (!is_test + ≥ baseline) |
+| `receita_real()` | FUNCTION | SUM(vendas_reais.gross_value)/100 |
+| `leads.external_id` | COLUMN | qs_* do quiz — join key com purchases.src |
+| `leads.is_test` | COLUMN | Denylist de email |
+| `purchases.src` | COLUMN | qs_* do quiz — join key com leads.external_id |
+| `purchases.is_test` | COLUMN | Denylist de email |
+| `webhook_logs.capi_status` | COLUMN | sent/failed/skipped — rastreabilidade CAPI |
+| `webhook_logs.capi_error` | COLUMN | Erro da tentativa CAPI |
+| `webhook_logs.capi_retries` | COLUMN | Contagem de tentativas |
+
+### 🔒 Novos server functions
+
+| Função | Arquivo | O que faz |
+|--------|---------|-----------|
+| `getOverviewKpis` | `overview.functions.ts` | Visão Geral via supabaseAdmin + views canônicas |
+| `getConvertedLeadIds` | `conversion.functions.ts` | Set de lead IDs com vendas (join external_id↔src) |
+
+### 🔗 Novas API routes
+
+| Rota | Função |
+|------|--------|
+| `GET /api/cron/capi-retry` | Reprocessa webhook_logs com capi_status='failed' (max 10/run, 5 tentativas). Protegido por CRON_SECRET. |
+
+### ⚠️ Pendente (pós-auditoria)
+
+1. **fbc alerta "modificado"** — recalcula em 2-3 dias conforme eventos novos entram (EMQ 8.2 já mostra que o fix pegou)
+2. **2º pixel `3207450996117474`** — investigar no Meta Business Manager
+3. **ViewContent:** não existe nos repos. Os 627 do Meta podem vir de UTMify/Kirvano (reconciliar)
+4. **persist_lead com p_external_id:** mergeado no Quiz-sacra mas verificar se Cloudflare deployou
+5. **Supabase types desatualizados:** 15 casts `as any` por tipos não regenerados (`supabase gen types`)
+
+### 🧭 REGRAS (lições da auditoria 2026-06-15/16)
+
+1. **Provar contra fonte viva** (banco real / Events Manager), nunca código ou "✅" no chat.
+2. **is_test por email denylist**, nunca por data. Data é baseline, não teste.
+3. **Join por external_id ↔ src**, nunca por email (NULL pós-WhatsApp).
+4. **Zero query crua** de purchases/leads no admin — tudo via views canônicas.
+5. **UPDATE por ID específico**, nunca order().limit() (race condition em multi-produto).
+6. **Retry CAPI async** (1 tentativa + cron), nunca síncrono no webhook.
+7. **Quiz roda em path** `rotinadepaz.com.br/sacra/quiz`, não subdomínio `sacra.rotinadepaz.com.br`.
+8. **Ler DATA-CONTRACT.md** antes de mexer em qualquer métrica.
+
+---
+
+## ⚡ ESTADO — Atualização 2026-06-05 (sessão: segurança + jurídico + UX)
 
 > **LEIA PRIMEIRO.** Mudanças estruturais importantes. Onde o texto antigo abaixo conflitar com esta seção, **esta prevalece**. Repos: App = `~/rotina-de-paz-app` (Supabase `cemjibbauvvyfaxilrvm`, deploy Vercel via push `main`); Quiz = `~/Quiz-sacra` (deploy Cloudflare via `~/rotina-de-paz`).
 
