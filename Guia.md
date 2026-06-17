@@ -212,25 +212,24 @@ src/main.tsx          → createRouter({ routeTree, basepath: "/sacra" })
 
 ### Build & Deploy
 
+**Use o script `deploy-quiz.sh` (verificado 2026-06-17 após incidente de tela branca):**
+
 ```bash
-# 1. Build o quiz
-cd ~/Quiz-sacra && npm run build
+cd ~/Quiz-sacra
 
-# 2. Copiar dist para rotina-de-paz
-rm -rf ~/rotina-de-paz/dist/sacra
-cp -r ~/Quiz-sacra/dist/ ~/rotina-de-paz/dist/sacra/
+# PREVIEW (sempre primeiro):
+./deploy-quiz.sh
+# → URL: https://preview-quiz.rotina-de-paz.pages.dev/sacra/quiz
 
-# 3. Criar cópias de index.html para sub-rotas (SPA fallback)
-for route in quiz quiz-sacra obrigado; do
-  mkdir -p ~/rotina-de-paz/dist/sacra/$route
-  cp ~/rotina-de-paz/dist/sacra/index.html ~/rotina-de-paz/dist/sacra/$route/index.html
-done
-
-# 4. Deploy
-cd ~/rotina-de-paz && npx wrangler pages deploy dist --project-name=rotina-de-paz --branch=main --commit-dirty=true
+# PRODUÇÃO (só após verificar preview):
+./deploy-quiz.sh --prod
 ```
 
-**IMPORTANTE**: Sempre usar `--branch=main` para produção. Sem isso, cria deploy de preview que NÃO aparece em `rotinadepaz.com.br`.
+O script faz: build Quiz-sacra → build rotina-de-paz → copia quiz para `dist/sacra/` → cria subrotas físicas → ajusta `_redirects` → deploy via wrangler.
+
+**⚠️ NUNCA rodar `wrangler pages deploy` de dentro do `Quiz-sacra/`** — isso deploya só o quiz como site inteiro, matando LP+checkout. Foi a causa do incidente de 2026-06-17.
+
+**Rollback:** Dashboard CF → Workers & Pages → rotina-de-paz → Deployments → deploy anterior → "Reverter para esta implantação".
 
 ### Tracking (Meta Pixel + CAPI)
 
