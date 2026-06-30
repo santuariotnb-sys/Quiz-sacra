@@ -485,7 +485,7 @@ export function QuizApp() {
           if (fbq) {
             const eid = getOrCreateExternalId();
             const ph = hasWhatsapp ? `55${digits}` : undefined;
-            const PIXEL = "838169472100225";
+            const PIXEL = "863734499693171";
             fbq("init", PIXEL, {
               ...(hasEmail ? { em: email.toLowerCase().trim() } : {}),
               ...(ph ? { ph } : {}),
