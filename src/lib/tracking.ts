@@ -100,7 +100,12 @@ export async function saveTrackingSession(externalId: string): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
 
-  const { fbp, fbc, fbclid } = getMetaClickData();
+  // Relê _fbp fresco: o pixel pode ter setado o cookie DEPOIS da captura inicial (race). (G2)
+  const cached = getMetaClickData();
+  const fresh = readFbCookies();
+  const fbp = fresh.fbp ?? cached.fbp;
+  const fbc = cached.fbc ?? fresh.fbc;
+  const fbclid = cached.fbclid;
   const userAgent = navigator.userAgent;
 
   const { error } = await sb.rpc("upsert_tracking_session", {
@@ -114,6 +119,26 @@ export async function saveTrackingSession(externalId: string): Promise<void> {
   // Logar (não engolir): essa sessão alimenta o fbp/fbc do CAPI server. Falha silenciosa
   // aqui degrada o match quality de TODAS as compras sem ninguém perceber.
   if (error) console.error("[tracking] upsert_tracking_session falhou:", error.message);
+
+  // Hardening fbp: o pixel seta o cookie _fbp ~300ms DEPOIS deste write inicial de mount.
+  // Se o fbp veio null, reagenda 1 upsert após 2s (COALESCE no RPC preenche sem sobrescrever).
+  // Garante fbp mesmo p/ quem não clica no CTA (que dispara o beacon). (G2+)
+  if (!fbp) {
+    setTimeout(() => {
+      const late = readFbCookies();
+      if (!late.fbp) return;
+      void Promise.resolve(
+        sb.rpc("upsert_tracking_session", {
+          p_external_id: externalId,
+          p_fbp: late.fbp,
+          p_fbc: late.fbc ?? fbc ?? null,
+          p_fbclid: fbclid ?? null,
+          p_user_agent: userAgent,
+          p_client_ip: null,
+        }),
+      ).catch(() => {});
+    }, 2000);
+  }
 }
 
 /**
@@ -130,7 +155,12 @@ export function sendTrackingBeacon(externalId: string): void {
   const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
   if (!url || !anon) return;
 
-  const { fbp, fbc, fbclid } = getMetaClickData();
+  // Relê _fbp fresco: o pixel pode ter setado o cookie DEPOIS da captura inicial (race). (G2)
+  const cached = getMetaClickData();
+  const fresh = readFbCookies();
+  const fbp = fresh.fbp ?? cached.fbp;
+  const fbc = cached.fbc ?? fresh.fbc;
+  const fbclid = cached.fbclid;
   const body = JSON.stringify({
     p_external_id: externalId,
     p_fbp: fbp ?? null,
