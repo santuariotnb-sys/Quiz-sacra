@@ -62,6 +62,17 @@ window.refusePageURL = declineTo;   // upsell → downsell ; downsell → app
 5. **Carregar o script cedo demais** (antes dos botões montarem) deixava o `querySelectorAll`
    vazio → listeners não anexados. **Fix:** MutationObserver espera os 2 botões.
 
+6. **Token one-click é de USO ÚNICO por pedido — não dá pra re-testar com link velho.**
+   O `kirvano_upsell` (base64 na URL) carrega o `s` = id do pedido original. Depois que o
+   pedido é finalizado/pago, aquela sessão one-click está **gasta**: clicar "aceitar" (cartão
+   OU PIX) só te joga na `pay.kirvano.com/order/<s>` do pedido concluído — **sem cobrar**.
+   Isso parece "botão morto no mobile", mas **não é bug**: é token consumido. **Sintoma
+   diagnóstico:** no `list_network_requests` o handler da Kirvano DISPARA (re-fetch de
+   `pay-api/installments` + `/offer/v2` + pixel `SubscribedButtonClick`), mas nenhum modal
+   renderiza. **Como testar de verdade:** compra NOVA ponta-a-ponta (cada pedido gera 1 token
+   fresco). Provado 01/jul: com token fresco, **cartão abre modal e PIX gera o QR certinho**
+   no mobile. (Perdemos uma sessão inteira caçando "bug mobile" que era token gasto.)
+
 ## Config na Kirvano (painel)
 
 **Produto: Rotina de Paz → Upsell, Downsell e mais**
