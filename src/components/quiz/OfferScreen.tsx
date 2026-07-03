@@ -17,6 +17,12 @@ import jaquelineAppImg from "@/assets/jaqueline-app.webp";
 
 const VSL_URL = "https://cdnrotinadepaz.b-cdn.net/VSL-mecanismo-v2v3-EDITADA.mp4";
 
+// Acessibilidade: respeita "reduzir movimento" no scroll suave do carrossel.
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 // Gate de hostname — só dispara tracking em produção (mesmo do pai).
 function trackingAllowed() {
   if (typeof window === "undefined") return false;
@@ -188,7 +194,7 @@ function VolumesCarousel() {
     const card = cards[i];
     if (!card) return;
     const target = card.offsetLeft - (car.clientWidth - card.offsetWidth) / 2;
-    car.scrollTo({ left: target, behavior: "smooth" });
+    car.scrollTo({ left: target, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   return (

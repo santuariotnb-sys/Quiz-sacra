@@ -32,6 +32,13 @@ const P = {
 
 const EASE = "cubic-bezier(.22,.8,.3,1)";
 
+// Acessibilidade: usuários com "reduzir movimento" não recebem partículas nem
+// as transições WAAPI de cena (scale+blur full-screen) — só o estado final.
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 // versão curta dos boxes (design: primeiras 2 frases) para caber na cena Mecanismo.
 function shorten(t: string): string {
   const s = (t || "").split(". ");
@@ -107,6 +114,15 @@ export function ResultScreen({
   const rootRef = useRef<HTMLDivElement>(null);
   const animating = useRef(false);
   const rafRef = useRef<number | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+
+  // limpa o timeout da transição de cena no unmount (evita setState após desmontar)
+  useEffect(
+    () => () => {
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    },
+    [],
+  );
 
   // ── Navegação entre cenas ──────────────────────────────────────────
   const go = useCallback(
@@ -114,22 +130,27 @@ export function ResultScreen({
       if (animating.current || target < 0 || target >= SCENES || target === cur) return;
       const root = rootRef.current;
       if (!root) return;
+      const reduce = prefersReducedMotion();
       const out = root.querySelector<HTMLElement>(`[data-scene="${cur}"]`);
       animating.current = true;
       if (out) {
         out.style.pointerEvents = "none";
-        out.animate(
-          [
-            { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
-            { opacity: 0, transform: "scale(1.04)", filter: "blur(6px)" },
-          ],
-          { duration: 550, easing: "ease-in", fill: "both" },
-        );
+        if (!reduce)
+          out.animate(
+            [
+              { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
+              { opacity: 0, transform: "scale(1.04)", filter: "blur(6px)" },
+            ],
+            { duration: 550, easing: "ease-in", fill: "both" },
+          );
       }
-      window.setTimeout(() => {
-        setCur(target);
-        animating.current = false;
-      }, 380);
+      timeoutRef.current = window.setTimeout(
+        () => {
+          setCur(target);
+          animating.current = false;
+        },
+        reduce ? 0 : 380,
+      );
     },
     [cur],
   );
@@ -145,6 +166,29 @@ export function ResultScreen({
     el.getAnimations({ subtree: true }).forEach((a) => a.cancel());
 
     el.style.pointerEvents = "auto";
+
+    // prefers-reduced-motion: mostra a cena já no estado final, sem WAAPI/blur/scale.
+    if (prefersReducedMotion()) {
+      el.style.opacity = "1";
+      el.style.transform = "none";
+      el.style.filter = "none";
+      el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a) => {
+        a.style.opacity = "1";
+        a.style.transform = "none";
+        a.style.filter = "none";
+      });
+      el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp) => {
+        sp.style.opacity = "1";
+        sp.style.filter = "none";
+      });
+      const wireStatic = el.querySelector<HTMLElement>("[data-circuit]");
+      if (wireStatic) wireStatic.style.height = "calc(100% - 48px)";
+      root.querySelectorAll<HTMLElement>("[data-seg]").forEach((seg, i) => {
+        seg.style.width = i <= cur ? "100%" : "0%";
+      });
+      return;
+    }
+
     el.animate(
       [
         { opacity: 0, transform: "scale(.97)", filter: "blur(8px)" },
@@ -206,6 +250,7 @@ export function ResultScreen({
     if (!c) return;
     const ctx = c.getContext("2d");
     if (!ctx) return;
+    if (prefersReducedMotion()) return; // sem partículas animadas p/ reduced-motion
     const dpr = window.devicePixelRatio || 1;
     const resize = () => {
       c.width = c.offsetWidth * dpr;
@@ -240,8 +285,19 @@ export function ResultScreen({
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
+    // pausa o rAF quando a aba fica oculta (poupa bateria/CPU em mobile)
+    const onVis = () => {
+      if (document.hidden) {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      } else if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVis);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, []);

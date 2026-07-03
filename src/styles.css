@@ -396,4 +396,7 @@ input, select, textarea {
   .rdp-arch-in { animation: none; opacity: 1; filter: none; transform: none; letter-spacing: .01em; }
   .rdp-bob { animation: none; }
   [style*="animation"] { animation: none !important; }
+  /* Telas Neurofé: mata as transições inline (Reveal/ScarcityBar/VSL/carrossel).
+     O JS do canvas de partículas e das transições WAAPI é tratado em ResultScreen.tsx. */
+  [style*="transition"] { transition: none !important; }
 }
