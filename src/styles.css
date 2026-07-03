@@ -1,8 +1,8 @@
 @import "tailwindcss" source(none);
 @source "../src";
 
-/* Google Fonts (Cormorant Garamond + Outfit) */
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Outfit:wght@300;400;500;600;700&display=swap");
+/* Google Fonts (Cormorant Garamond + Outfit + Montserrat p/ telas Neurofé) */
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap");
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -74,6 +74,16 @@ input, select, textarea {
     letter-spacing: -0.01em;
   }
 }
+
+/* ============ Telas Neurofé (Apresentação/Oferta) — keyframes do design ============ */
+@keyframes sa-kenburns { 0% { transform: scale(1.05) translateY(0); } 100% { transform: scale(1.18) translateY(-2%); } }
+@keyframes sa-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+@keyframes sa-shine { to { background-position: 200% center; } }
+@keyframes sa-ctaGlow { 0%,100% { box-shadow: 0 12px 34px rgba(176,138,56,.35); } 50% { box-shadow: 0 12px 50px rgba(212,175,55,.65); } }
+@keyframes sa-ringSpin { to { transform: rotate(360deg); } }
+@keyframes sa-btnPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes sa-pinkGlow { 0%,100% { box-shadow: 0 14px 40px rgba(224,139,196,.35); } 50% { box-shadow: 0 14px 60px rgba(232,155,208,.75); } }
+@keyframes sa-vagaBlink { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 
 /* ============ Rotina de Paz custom utilities ============ */
 

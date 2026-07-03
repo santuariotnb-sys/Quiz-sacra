@@ -182,6 +182,29 @@ export type MirrorChecks = {
   behavior: string;
 };
 
+export type NeurofeBox = {
+  icone: string;
+  titulo: string;
+  texto: string;
+};
+
+export type NeurofeData = {
+  dores: [string, string];
+  espelho: string;
+  verdadeTitulo1: string;
+  verdadeTitulo2: string;
+  verdadeCorpo: string;
+  versiculoRef: string;
+  versiculo: string;
+  versiculoNota1: string;
+  versiculoNota2: string;
+  tentouCorpo: string;
+  boxes: NeurofeBox[];
+  mudaTitulo: string;
+  mudaCorpo: string;
+  proximoPasso: string;
+};
+
 export type ArchetypeData = {
   id: Archetype;
   name: string;
@@ -190,6 +213,7 @@ export type ArchetypeData = {
   result: ArchetypeResult;
   mechanism: MechanismData;
   mirrorChecks: MirrorChecks;
+  neurofe: NeurofeData;
   /** HTML rico — renderizado via dangerouslySetInnerHTML. */
   mechanismHtml: string;
   /** HTML rico do bloco "desarme" (verdade + versículo). */
@@ -238,6 +262,50 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
     mirrorChecks: {
       symptom: "Você acorda às 3h porque seu corpo aprendeu que se desligar, algo escapa",
       behavior: "Você diz “tudo bem” — e volta a vigiar",
+    },
+    neurofe: {
+      dores: [
+        "Você deita exausta — e a mente liga. Revisa o dia, os filhos, as contas. O corpo na cama, o radar ligado.",
+        "Qualquer barulho, qualquer silêncio estranho, e você já levantou. Descansar parece perigoso.",
+      ],
+      espelho:
+        "Você virou a sentinela da casa. Mas sentinela nenhuma aguenta ficar de guarda a vida inteira — sem nunca ser rendida.",
+      verdadeTitulo1: "Isso não é só uma noite mal dormida.",
+      verdadeTitulo2: "É um corpo que esqueceu como baixar a guarda.",
+      verdadeCorpo:
+        "Anos vigiando todo mundo. Ninguém te avisou que <b>o turno da noite não é seu</b> — existe Alguém que não dorme para que você possa dormir.",
+      versiculoRef: "Salmo 121",
+      versiculo:
+        "\"Eis que não dormita, nem dorme, o guarda de Israel.\"",
+      versiculoNota1: "Ele fica de vigia a noite inteira.",
+      versiculoNota2: "Pra você poder, finalmente, fechar os olhos.",
+      tentouCorpo:
+        "Você tentou de tudo. Chá, técnica atrás de técnica, orar até tarde, cansar o corpo. E a mente continuava de plantão. Alguém disse que era falta de fé. <b>Isso é mentira.</b>",
+      boxes: [
+        {
+          icone: "🫁",
+          titulo: "Corpo",
+          texto:
+            "A respiração guiada dá ao seu corpo o sinal de 'rendição de turno': por agora, não há nada para vigiar. A mandíbula solta, o coração desacelera e o corpo entende que pode, enfim, sair do posto.",
+        },
+        {
+          icone: "🧠",
+          titulo: "Mente",
+          texto:
+            "Nós interrompemos a ronda mental — aquela revisão infinita de tudo o que pode dar errado. Com constância, treinamos sua mente a aprender um novo caminho: sair do modo sentinela e entregar o plantão. É a renovação prática de Romanos 12:2.",
+        },
+        {
+          icone: "🕊️",
+          titulo: "Espírito",
+          texto:
+            "Com o radar desligado, a Palavra encontra espaço. Você deixa de ser a guarda solitária da casa e volta a ser a Filha guardada. Não é você que sustenta a noite — é Ele. E Ele não dormita.",
+        },
+      ],
+      mudaTitulo: "Imagine dormir a noite inteira.",
+      mudaCorpo:
+        "Você deita. A mente não liga o radar. Pela primeira vez em anos, <b>o sono vem sem luta</b> — e você acorda com a sensação esquecida de ter descansado de verdade. A noite deixou de ser turno e voltou a ser abrigo.",
+      proximoPasso:
+        "No próximo passo, eu te mostro <b>como a Neurofé desliga esse radar no seu padrão Vigilante</b> — em poucos minutos.",
     },
     chapters: [
       {
@@ -315,6 +383,50 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       symptom: "O cansaço mora onde dormir não alcança: ombro, pescoço, mandíbula",
       behavior: "Você sorri, diz “tudo bem” — e segura tudo por dentro",
     },
+    neurofe: {
+      dores: [
+        "Você não consegue parar — \"tem gente dependendo de mim\". Então se deixa por último, todo dia.",
+        "Você grita com quem ama sem querer. E a culpa depois dói mais que o cansaço.",
+      ],
+      espelho:
+        "Você se perdeu sendo a pessoa que segura todo mundo. E agora, ninguém segura você — nem você mesma.",
+      verdadeTitulo1: "Isso não é fraqueza.",
+      verdadeTitulo2: "É exaustão acumulada.",
+      verdadeCorpo:
+        "Anos sendo \"a forte\", \"a prestativa\". Ninguém te avisou que <b>descansar também é fé</b> — confiar que Deus continua agindo enquanto você dorme.",
+      versiculoRef: "Mateus 11",
+      versiculo:
+        "\"Vinde a mim, todos os que estais cansados e sobrecarregados, e eu vos aliviarei.\"",
+      versiculoNota1: "O convite é específico pra você.",
+      versiculoNota2: "Não é pra se esforçar mais — é pra parar.",
+      tentouCorpo:
+        "Você tentou de tudo. Orar mais, confiar mais, ser forte, aguentar. E toda vez que não passava, alguém sussurrava que a culpa era sua — que faltava fé. <b>Isso é mentira.</b>",
+      boxes: [
+        {
+          icone: "🫁",
+          titulo: "Corpo",
+          texto:
+            "A respiração guiada desativa o seu 'modo de plantão'. É o sinal que o seu corpo cansado precisa para entender que, por agora, você não precisa vigiar nada. O ombro desce, o peito abre e o grito de alerta silenciosamente dá lugar ao repouso.",
+        },
+        {
+          icone: "🧠",
+          titulo: "Mente",
+          texto:
+            "Nós interrompemos o fluxo de preocupações automáticas. Com constância, treinamos sua mente a aprender um novo caminho — a sair do 'Modo Operacional', aquele que só enxerga tarefas, e retomar o controle sobre o que você pensa. É a renovação prática de Romanos 12:2.",
+        },
+        {
+          icone: "🕊️",
+          titulo: "Espírito",
+          texto:
+            "Com o ruído do cansaço silenciado, a Palavra de Deus finalmente encontra solo fértil. A barreira da culpa cai e você deixa de ser a 'mula de carga' para voltar a ser a Filha cuidada. Deus não está distante; era o seu cansaço que estava gritando alto demais.",
+        },
+      ],
+      mudaTitulo: "Imagine descansar sem culpa.",
+      mudaCorpo:
+        "Você senta. Não faz nada por 15 minutos. E pela primeira vez, <b>a culpa não dispara junto</b>. O ombro desce. A pressa solta. Descansar deixa de ser pecado e volta a ser o que sempre foi: confiar que Deus continua agindo enquanto você para.",
+      proximoPasso:
+        "No próximo passo, eu te mostro <b>como a Neurofé desliga esse alarme no seu padrão Sobrecarga</b> — em poucos minutos.",
+    },
     chapters: [
       {
         num: "05",
@@ -390,6 +502,50 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       symptom: "Você ora, lê, tenta confiar — e acorda com o peito apertado",
       behavior: "Você se culpa por estar sentindo, como se cristã de verdade não tremesse",
     },
+    neurofe: {
+      dores: [
+        "Você faz tudo — e ainda deita com a sensação de que falhou. Como mãe, como esposa, como cristã.",
+        "Você ora, mas parece que a oração bate no teto. Como se Deus estivesse cansado de você.",
+      ],
+      espelho:
+        "Você virou juíza de si mesma. E é a juíza mais dura que existe — nunca te absolve, nem quando Deus já absolveu.",
+      verdadeTitulo1: "Isso não é convicção do Espírito.",
+      verdadeTitulo2: "É acusação em loop.",
+      verdadeCorpo:
+        "Anos ouvindo uma voz interna que só aponta falta. Ninguém te avisou que <b>essa voz não é a de Deus</b> — a voz d'Ele restaura; a que te esmaga, condena.",
+      versiculoRef: "Romanos 8",
+      versiculo:
+        "\"Portanto, agora, nenhuma condenação há para os que estão em Cristo Jesus.\"",
+      versiculoNota1: "Nenhuma. Nem a sua própria.",
+      versiculoNota2: "A sentença já foi dada — e é absolvição.",
+      tentouCorpo:
+        "Você tentou de tudo. Se dedicar mais, servir mais, pedir perdão de novo pelo mesmo erro. E a culpa voltava sempre. Alguém sugeriu que era falta de arrependimento. <b>Isso é mentira.</b>",
+      boxes: [
+        {
+          icone: "🫁",
+          titulo: "Corpo",
+          texto:
+            "A culpa mora no corpo: peito apertado, garganta fechada. A respiração guiada afrouxa esse nó físico e dá ao seu corpo o sinal de que você não está sendo julgada agora. O peito abre. O ar volta.",
+        },
+        {
+          icone: "🧠",
+          titulo: "Mente",
+          texto:
+            "Nós interrompemos o tribunal interno — o replay automático de cada falha. Com constância, treinamos sua mente a aprender um novo caminho: soltar a acusação e reter a graça. É a renovação prática de Romanos 12:2.",
+        },
+        {
+          icone: "🕊️",
+          titulo: "Espírito",
+          texto:
+            "Com a voz da acusação silenciada, você volta a ouvir a voz certa. Deixa de ser a ré em julgamento permanente e volta a ser a Filha amada. Deus não estava distante — a culpa é que gritava mais alto que a graça.",
+        },
+      ],
+      mudaTitulo: "Imagine sentir Deus de novo.",
+      mudaCorpo:
+        "Você ora — e não bate no teto. Pela primeira vez em muito tempo, <b>você se sente ouvida, não julgada</b>. O peso sai do peito. E a fé volta a ser abraço, não prova que você vive reprovando.",
+      proximoPasso:
+        "No próximo passo, eu te mostro <b>como a Neurofé silencia essa acusação no seu padrão Culposa</b> — em poucos minutos.",
+    },
     chapters: [
       {
         num: "02",
@@ -464,6 +620,50 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
     mirrorChecks: {
       symptom: "Antes de levantar, sua mente já correu o dia inteiro",
       behavior: "Você imagina o pior — e gasta toda a energia antes de sair da cama",
+    },
+    neurofe: {
+      dores: [
+        "Sua mente vive no futuro — ensaiando tragédias que nunca chegam. Doença, acidente, falta de dinheiro.",
+        "Você não aproveita o presente: está sempre 'e se...'. O medo rouba até os momentos bons.",
+      ],
+      espelho:
+        "Você vive pagando juros de dores que talvez nunca venham. E a vida real — a de hoje — passa sem você estar nela.",
+      verdadeTitulo1: "Isso não é falta de fé.",
+      verdadeTitulo2: "É uma mente treinada pra prever perigo.",
+      verdadeCorpo:
+        "Anos se preparando pro pior pra não ser pega de surpresa. Ninguém te avisou que <b>o futuro já tem dono</b> — e os planos d'Ele pra você não são de mal.",
+      versiculoRef: "Jeremias 29",
+      versiculo:
+        "\"Porque eu bem sei os pensamentos que tenho a vosso respeito: pensamentos de paz e não de mal.\"",
+      versiculoNota1: "O futuro que te assombra já foi pensado por Ele.",
+      versiculoNota2: "E os pensamentos d'Ele são de paz.",
+      tentouCorpo:
+        "Você tentou de tudo. Controlar, planejar, declarar versículos contra o medo. E o 'e se...' sempre voltava. Alguém disse que era falta de fé, que bastava confiar. <b>Isso é mentira.</b>",
+      boxes: [
+        {
+          icone: "🫁",
+          titulo: "Corpo",
+          texto:
+            "O medo do futuro dispara o corpo no presente: coração acelerado, estômago em nó. A respiração guiada traz o seu corpo de volta pro agora — o único lugar onde você está segura de verdade.",
+        },
+        {
+          icone: "🧠",
+          titulo: "Mente",
+          texto:
+            "Nós interrompemos o cinema de tragédias — os ensaios automáticos do pior. Com constância, treinamos sua mente a aprender um novo caminho: sair do futuro imaginado e habitar o dia de hoje. É a renovação prática de Romanos 12:2.",
+        },
+        {
+          icone: "🕊️",
+          titulo: "Espírito",
+          texto:
+            "Com a mente de volta ao presente, a Palavra encontra você aqui. Você deixa de ser a profetisa do pior e volta a ser a Filha que confia. O amanhã pertence a Deus — e Ele já disse o que pensa sobre o seu.",
+        },
+      ],
+      mudaTitulo: "Imagine a mente quieta.",
+      mudaCorpo:
+        "Você toma café e está ali — só ali. Pela primeira vez, <b>o 'e se...' não senta à mesa com você</b>. O peito solto, o dia inteiro pela frente, e uma paz estranha e boa: a de quem entregou o amanhã pra quem já cuida dele.",
+      proximoPasso:
+        "No próximo passo, eu te mostro <b>como a Neurofé aquieta esse alarme no seu padrão Antecipatória</b> — em poucos minutos.",
     },
     chapters: [
       {
@@ -718,3 +918,22 @@ export function getTransition(qIndex: number, answers: Record<string, string>): 
   }
   return q.transition ?? null;
 }
+
+// Oferta Neurofé (design 2026-07-02) — dormente até a Fase 2 fiar na OfferScreen nova.
+export const NEUROFE_OFFER = {
+  anchorCents: 22800,       // "de" R$228 (âncora do value stack; preço "por" continua vindo do DB)
+  guaranteeDays: 15,
+  installments: 10,
+  installmentCents: 560,    // 10× de R$5,60 (com juros — confirmado pelo dono)
+  valueStack: [
+    { label: "Volume I + II · 14 sessões guiadas", cents: 12700 },
+    { label: "E-book · Dormir Melhor Hoje", cents: 3700 },
+    { label: "E-book · 30 Devocionais com Jesus", cents: 3700 },
+    { label: "Louvores do Reino · 148 em Salmos", cents: 2700 },
+  ],
+  metodo: "O caminho que mudou a minha vida — e a de centenas de mulheres que precisavam de alívio. E sim, é possível: com a técnica certa e a constância, <b>a mente muda</b>. Ela aprende novos hábitos, novas rotinas de paz — é a renovação da mente que Paulo já testificava:",
+  volumes: [
+    { titulo: "Volume I — Despertar", subtitulo: "7 Manhãs de Renovação da Mente" },
+    { titulo: "Volume II — Repouso", subtitulo: "7 Noites de Selagem Profunda" },
+  ],
+} as const;

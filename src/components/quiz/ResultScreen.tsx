@@ -1,280 +1,446 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { GuideAvatar } from "./Avatar";
-import { SpeechBubble } from "./SpeechBubble";
-import { AlarmeDiagram } from "./AlarmeDiagram";
-import { MirrorChecksSection } from "./MirrorChecks";
-import {
-  DESIRE_BEAT,
-  DESIRE_BEAT_FALLBACK,
-  getBridgeCopy,
-  type ArchetypeData,
-} from "@/data/quiz";
+import { useCallback, useEffect, useRef, useState } from "react";
+import luzDourada from "@/assets/luz-dourada.webp";
+import descanso from "@/assets/descanso.webp";
+import jaquelineImg from "@/assets/jaqueline.webp";
+import { DESIRE_CTA, type ArchetypeData } from "@/data/quiz";
 
-// Reveal-on-scroll (respeita prefers-reduced-motion via framer-motion).
-function Reveal({ children, className, pop }: { children: ReactNode; className?: string; pop?: boolean }) {
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 26, ...(pop ? { scale: 0.97 } : {}) }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, amount: 0.16 }}
-      transition={{ duration: 0.9, ease: [0.2, 0.7, 0.2, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
+/**
+ * Tela A — Apresentação / Resultado (design Neurofé).
+ * Motor de "stories" de 5 cenas (Revelação · Verdade · Mecanismo · Imagine · CTA),
+ * port fiel de `Apresentação Sacra.dc.html`. Animações via WAAPI/rAF em useEffect.
+ *
+ * TRACKING (SAGRADO #1): o CTA da cena 4 chama `onContinue` (= goToOffer no pai).
+ * Corpo/conteúdo por ARQUÉTIPO (archetype.neurofe.*); label do CTA por DESEJO (DESIRE_CTA).
+ */
+
+const SCENES = 5;
+const FALLBACK_CTA = "Eu creio — quero minha paz";
+
+// Paleta do design (hex verbatim — takeover full-bleed, independente das vars do quiz).
+const P = {
+  creme: "#F6F0E4",
+  cremeDeep: "#F0E6D2",
+  ink: "#4A4152",
+  goldText: "#8A6A2A",
+  goldDeep: "#6B5320",
+  gold: "#D4AF37",
+  goldWarm: "#B08A38",
+  goldSoft: "#E4C878",
+  purple: "#8A5FB0",
+  cremeText: "#EFE7D6",
+};
+
+const EASE = "cubic-bezier(.22,.8,.3,1)";
+
+// versão curta dos boxes (design: primeiras 2 frases) para caber na cena Mecanismo.
+function shorten(t: string): string {
+  const s = (t || "").split(". ");
+  return s.slice(0, 2).join(". ") + (s.length > 2 ? "." : "");
 }
 
-function ScrollCue() {
-  return (
-    <div className="mt-8 flex flex-col items-center gap-2.5">
-      <span className="text-center text-[11px] font-medium uppercase tracking-[0.24em] text-[color:var(--gold-warm)]">
-        Role e descubra
-      </span>
-      <div className="rdp-bob flex h-[38px] w-[22px] flex-col items-center">
-        <span className="h-[26px] w-px bg-gradient-to-b from-[color:var(--gold-warm)] to-transparent" />
-        <span className="mt-auto h-2 w-2 rotate-45 border-b-[1.5px] border-r-[1.5px] border-[color:var(--gold-warm)]" />
-      </div>
-    </div>
-  );
+const btnDark: React.CSSProperties = {
+  pointerEvents: "auto",
+  fontFamily: "'Montserrat',sans-serif",
+  background: "#2E2342",
+  border: "1.5px solid rgba(228,200,120,.7)",
+  color: P.goldSoft,
+  fontWeight: 700,
+  fontSize: 13,
+  letterSpacing: 2,
+  padding: "14px 36px",
+  borderRadius: 50,
+  cursor: "pointer",
+  boxShadow: "0 8px 24px rgba(0,0,0,.4)",
+};
+
+const btnGold: React.CSSProperties = {
+  fontFamily: "'Montserrat',sans-serif",
+  background: `linear-gradient(90deg,${P.goldWarm},${P.gold},${P.goldWarm})`,
+  backgroundSize: "200% auto",
+  animation: "sa-shine 3s linear infinite, sa-ctaGlow 2.8s ease-in-out infinite, sa-btnPulse 2.2s ease-in-out infinite",
+  border: "none",
+  color: "#FFF",
+  fontWeight: 700,
+  fontSize: 13,
+  letterSpacing: 2,
+  padding: "16px 40px",
+  borderRadius: 50,
+  cursor: "pointer",
+};
+
+const btnRow: React.CSSProperties = {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  display: "flex",
+  justifyContent: "center",
+  padding: "52px 0 calc(30px + env(safe-area-inset-bottom))",
+  pointerEvents: "none",
+  zIndex: 20,
+};
+
+function scrimForDark(): React.CSSProperties {
+  return { ...btnRow, background: "linear-gradient(180deg, rgba(36,27,51,0), rgba(36,27,51,.94) 62%)" };
+}
+function scrimForLight(): React.CSSProperties {
+  return { ...btnRow, background: "linear-gradient(180deg, rgba(246,240,228,0), rgba(246,240,228,.95) 62%)" };
 }
 
 export function ResultScreen({
   archetype,
-  bridge,
-  name,
   desire,
   onContinue,
 }: {
   archetype: ArchetypeData;
-  bridge: string | null;
-  name: string;
+  bridge?: string | null;
+  name?: string;
   desire?: string;
   onContinue: () => void;
 }) {
-  const r = archetype.result;
-  const beat = (desire && DESIRE_BEAT[desire]) || DESIRE_BEAT_FALLBACK;
-  const bridgeCopy = getBridgeCopy(archetype, desire);
+  const n = archetype.neurofe;
+  const ctaLabel = (desire && DESIRE_CTA[desire]) || FALLBACK_CTA;
+  const boxes = n.boxes.map((b) => ({ ...b, textoCurto: shorten(b.texto) }));
+  const mudaWords = (n.mudaCorpo || "").replace(/<\/?b>/g, "").split(" ");
 
-  // CTA sticky: aparece depois da batida 4 (mecanismo)
-  const mechanismRef = useRef<HTMLDivElement>(null);
-  const [showSticky, setShowSticky] = useState(false);
+  const [cur, setCur] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const animating = useRef(false);
+  const rafRef = useRef<number | null>(null);
 
-  // CTA principal: sticky recolhe quando este fica visível
-  const ctaRef = useRef<HTMLDivElement>(null);
-  const [ctaVisible, setCtaVisible] = useState(false);
+  // ── Navegação entre cenas ──────────────────────────────────────────
+  const go = useCallback(
+    (target: number) => {
+      if (animating.current || target < 0 || target >= SCENES || target === cur) return;
+      const root = rootRef.current;
+      if (!root) return;
+      const out = root.querySelector<HTMLElement>(`[data-scene="${cur}"]`);
+      animating.current = true;
+      if (out) {
+        out.style.pointerEvents = "none";
+        out.animate(
+          [
+            { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
+            { opacity: 0, transform: "scale(1.04)", filter: "blur(6px)" },
+          ],
+          { duration: 550, easing: "ease-in", fill: "both" },
+        );
+      }
+      window.setTimeout(() => {
+        setCur(target);
+        animating.current = false;
+      }, 380);
+    },
+    [cur],
+  );
 
+  // ── Entrada da cena atual (container + cascata data-anim + fio + palavras + progresso) ──
   useEffect(() => {
-    const el = mechanismRef.current;
+    const root = rootRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(`[data-scene="${cur}"]`);
     if (!el) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
-          setShowSticky(true);
-          io.disconnect();
+
+    // cancela fills antigos desta cena (evita estado preso ao reentrar)
+    el.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+
+    el.style.pointerEvents = "auto";
+    el.animate(
+      [
+        { opacity: 0, transform: "scale(.97)", filter: "blur(8px)" },
+        { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
+      ],
+      { duration: cur === 0 ? 900 : 750, easing: EASE, fill: "both" },
+    );
+
+    el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a, i) =>
+      a.animate(
+        [
+          { opacity: 0, transform: "translateY(30px)", filter: "blur(6px)" },
+          { opacity: 1, transform: "translateY(0px)", filter: "blur(0px)" },
+        ],
+        { duration: 850, delay: 250 + i * 220, easing: EASE, fill: "both" },
+      ),
+    );
+
+    const wire = el.querySelector<HTMLElement>("[data-circuit]");
+    if (wire)
+      wire.animate([{ height: "0px" }, { height: "calc(100% - 48px)" }], {
+        duration: 1800,
+        delay: 500,
+        easing: "ease-out",
+        fill: "both",
+      });
+
+    el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp, i) =>
+      sp.animate([{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0px)" }], {
+        duration: 450,
+        delay: 600 + i * 60,
+        easing: "ease-out",
+        fill: "both",
+      }),
+    );
+
+    root.querySelectorAll<HTMLElement>("[data-seg]").forEach((seg, i) => {
+      if (i < cur) seg.style.width = "100%";
+      else if (i === cur) {
+        seg.style.width = "0%";
+        seg.animate([{ width: "0%" }, { width: "100%" }], { duration: 900, delay: 200, easing: "ease-out", fill: "both" });
+      } else seg.style.width = "0%";
+    });
+  }, [cur]);
+
+  // ── Teclado: →/Espaço avança, ← volta ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === " ") go(cur + 1);
+      else if (e.key === "ArrowLeft") go(cur - 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [go, cur]);
+
+  // ── Partículas de ouro (+ ~18% roxas) ──
+  useEffect(() => {
+    const c = rootRef.current?.querySelector<HTMLCanvasElement>("[data-dust]");
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const resize = () => {
+      c.width = c.offsetWidth * dpr;
+      c.height = c.offsetHeight * dpr;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    const parts = Array.from({ length: 46 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: 1 + Math.random() * 2.4,
+      v: 0.00025 + Math.random() * 0.0007,
+      drift: (Math.random() - 0.5) * 0.0004,
+      ph: Math.random() * Math.PI * 2,
+      roxo: Math.random() < 0.18,
+    }));
+    const tick = (t: number) => {
+      ctx.clearRect(0, 0, c.width, c.height);
+      for (const p of parts) {
+        p.y -= p.v;
+        p.x += p.drift;
+        if (p.y < -0.02) {
+          p.y = 1.02;
+          p.x = Math.random();
         }
-      },
-      { threshold: 0 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
+        const tw = 0.35 + 0.65 * Math.abs(Math.sin(t / 1400 + p.ph));
+        ctx.beginPath();
+        ctx.arc(p.x * c.width, p.y * c.height, p.r * dpr, 0, Math.PI * 2);
+        ctx.fillStyle = p.roxo ? `rgba(150,110,200,${0.35 * tw})` : `rgba(212,175,55,${0.5 * tw})`;
+        ctx.fill();
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      window.removeEventListener("resize", resize);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, []);
 
-  useEffect(() => {
-    const el = ctaRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([entry]) => setCtaVisible(entry.isIntersecting),
-      { threshold: 0.5 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  const sceneBase: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    zIndex: 10,
+    opacity: 0,
+    pointerEvents: "none",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    boxSizing: "border-box",
+  };
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.6 }}
-      className="mx-auto max-w-xl overflow-x-clip"
+    <div
+      ref={rootRef}
+      style={{
+        position: "fixed",
+        inset: 0,
+        overflow: "hidden",
+        fontFamily: "'Montserrat',sans-serif",
+        background: P.creme,
+        color: P.ink,
+        userSelect: "none",
+        zIndex: 40,
+      }}
     >
-      {/* ═══ BATIDA 1 — REVELAÇÃO ═══ */}
-      <div className="px-5 pb-6 pt-10 sm:px-8" style={{ backgroundColor: "var(--milk)" }}>
-        {/* Saudação */}
-        <div className="flex items-start gap-3 sm:gap-5">
-          <GuideAvatar size="corner" />
-          <div className="min-w-0 flex-1 pt-1">
-            <SpeechBubble
-              text={`Encontrei${name ? `, ${name}` : ""}. Seu padrão tem nome.`}
-              typingDelay={400}
-            />
-          </div>
-        </div>
+      {/* partículas de ouro */}
+      <canvas
+        data-dust
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 5, pointerEvents: "none" }}
+      />
 
-        {/* Nome do padrão — blur→nítido */}
-        <div className="mt-10 text-center">
-          <p
-            className="flex items-center justify-center gap-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]"
-            style={{ animation: "fadeIn .8s .2s ease both" }}
-          >
-            <span className="text-[color:var(--gold)]">&#10022;</span>
-            {"Padrão raiz identificado"}
-            <span className="text-[color:var(--gold)]">&#10022;</span>
-          </p>
-          <h1
-            className="rdp-arch-in mt-2 font-display font-bold leading-[0.95] text-[color:var(--deep-purple)]"
-            style={{ fontSize: archetype.name.length > 10 ? "clamp(1.4rem, 5.5vw, 3rem)" : "clamp(1.6rem, 7vw, 4rem)" }}
-          >
-            {archetype.name}
-          </h1>
-          <p
-            className="mt-2 font-display text-[21px] italic text-[color:var(--amethyst)]"
-            style={{ animation: "fadeIn .8s .7s ease both" }}
-          >
-            {r.tagline}
-          </p>
-        </div>
-
-        <ScrollCue />
-      </div>
-
-      {/* ═══ BATIDA 2 — ESPELHO ═══ */}
-      <div className="px-5 py-10 sm:px-8" style={{ backgroundColor: "var(--milk)" }}>
-        <Reveal>
-          <MirrorChecksSection mirrorChecks={archetype.mirrorChecks} bridge={bridge} />
-        </Reveal>
-      </div>
-
-      {/* ═══ BATIDA 3 — ABSOLVIÇÃO ═══ */}
-      <div className="px-5 py-12 sm:px-8" style={{ backgroundColor: "var(--milk-warm)" }}>
-        <Reveal pop>
-          <section
-            className="rdp-card-verdade rounded-[18px] px-7 py-10 text-center sm:px-9 sm:py-12"
-            style={{ borderColor: "var(--gold-warm)", borderWidth: "1.5px" }}
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]">
-              {"A verdade que você precisa ouvir"}
-            </p>
-            <h3 className="mt-3 font-display text-[30px] font-semibold leading-[1.15] text-[color:var(--deep-purple)]">
-              {r.truthTitle}{" "}
-              <em className="italic text-[color:var(--gold-warm)]">{r.truthTitleEm}</em>
-            </h3>
-            <p
-              className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
-              dangerouslySetInnerHTML={{ __html: r.truthBody }}
-            />
-            <motion.div
-              className="mt-6"
-              initial={{ opacity: 0, y: 14, scale: 0.96 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 1, delay: 0.15, ease: "easeOut" }}
-            >
-              <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--gold-warm)]">
-                {r.verseRef}
-              </p>
-              <p className="mt-1.5 font-display text-[22px] italic text-[color:var(--deep-purple)]">
-                {`\u201C${r.verseText}\u201D`}
-              </p>
-            </motion.div>
-            <p className="mt-5 whitespace-pre-line font-display text-[19px] italic leading-relaxed text-[color:var(--amethyst)]">
-              {r.seal}
-            </p>
-          </section>
-        </Reveal>
-      </div>
-
-      {/* ═══ BATIDA 4 — MECANISMO ═══ */}
-      <div ref={mechanismRef} className="px-5 py-10 sm:px-8" style={{ backgroundColor: "var(--milk)" }}>
-        <Reveal>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--deep-purple)]">
-            {"Por que nada até hoje funcionou"}
-          </p>
-          <p className="mt-4 text-[17px] leading-relaxed text-[color:var(--amethyst)]">
-            {archetype.mechanism.hook}
-          </p>
-        </Reveal>
-        <Reveal className="mt-8">
-          <AlarmeDiagram mechanism={archetype.mechanism} chapters={archetype.chapters} />
-        </Reveal>
-      </div>
-
-      {/* ═══ BATIDA 5 — PORTAL (gradiente night→milk) ═══ */}
+      {/* progresso estilo story */}
       <div
-        className="px-5 py-12 sm:px-8"
         style={{
-          background: "linear-gradient(to bottom, var(--night-1), var(--milk))",
+          position: "absolute",
+          top: "calc(14px + env(safe-area-inset-top))",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(520px, calc(100% - 40px))",
+          display: "flex",
+          gap: 6,
+          zIndex: 40,
         }}
       >
-        <Reveal pop>
-          <section className="rounded-[18px] px-7 py-8 text-center sm:px-9">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--gold-warm)]">
-              {bridgeCopy.eyebrow}
-            </p>
-            <h2 className="mt-2 font-display text-[32px] font-semibold leading-[1.12] text-[#F4E9EE]">
-              {bridgeCopy.headline}
-            </h2>
-            <p
-              className="mt-4 text-[18px] leading-relaxed text-[#F4E9EE]/80 [&_strong]:font-semibold [&_strong]:text-[#F4E9EE]"
-              dangerouslySetInnerHTML={{ __html: beat.body }}
-            />
-            <p
-              className="mt-4 text-[18px] leading-relaxed text-[color:var(--amethyst)] [&_strong]:font-semibold [&_strong]:text-[color:var(--deep-purple)]"
-              dangerouslySetInnerHTML={{ __html: beat.closing }}
-            />
-          </section>
-        </Reveal>
-      </div>
-
-      {/* ═══ BATIDA 6 — PONTE ═══ */}
-      <div className="px-5 py-10 sm:px-8" style={{ backgroundColor: "var(--milk)" }}>
-        <Reveal>
-          <p className="text-center text-[17px] leading-relaxed text-[color:var(--amethyst)]">
-            {bridgeCopy.bridge}
-          </p>
-        </Reveal>
-
-        {/* CTA principal */}
-        <Reveal className="mt-8" pop>
-          <div ref={ctaRef} className="text-center">
-            <button
-              onClick={onContinue}
-              className="rdp-btn-gradient-hover inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-[21px] text-[15px] font-semibold uppercase tracking-[0.14em] text-white"
-              style={{ animation: "rdp-cta-pulse 2.4s ease-in-out infinite" }}
-            >
-              <span>{bridgeCopy.cta}</span>
-              <span aria-hidden className="transition-transform group-hover:translate-x-1">{"\u2192"}</span>
-            </button>
-            <p className="mt-3 text-[12.5px] text-[color:var(--amethyst)]">
-              {"Alívio da ansiedade + Fortalecimento da Fé"}
-            </p>
+        {Array.from({ length: SCENES }).map((_, i) => (
+          <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: "rgba(90,70,40,.18)", overflow: "hidden" }}>
+            <div data-seg style={{ height: "100%", width: "0%", background: `linear-gradient(90deg,${P.goldWarm},${P.goldSoft})` }} />
           </div>
-        </Reveal>
+        ))}
       </div>
 
-      {/* ═══ CTA STICKY (aparece após batida 4, recolhe quando CTA principal visível) ═══ */}
-      <AnimatePresence>
-        {showSticky && !ctaVisible && (
-          <motion.div
-            key="sticky-cta"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="fixed bottom-0 left-0 right-0 z-50 border-t border-[color:var(--gold-warm)]/20 bg-[color:var(--milk)] px-4 pb-[env(safe-area-inset-bottom,8px)] pt-3"
+      {/* ── CENA 0 · Revelação ── */}
+      <div
+        data-scene="0"
+        style={{ ...sceneBase, overflowY: "auto", textAlign: "center", padding: 24, background: `linear-gradient(180deg,${P.creme},${P.cremeDeep})` }}
+      >
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+          <img src={luzDourada} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", animation: "sa-kenburns 18s ease-out infinite alternate" }} />
+        </div>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(246,240,228,.55), rgba(246,240,228,.25) 45%, rgba(246,240,228,.8))" }} />
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", margin: "auto", padding: "40px 0 60px", width: "min(480px,100%)" }}>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 14, letterSpacing: 6, color: P.goldText, fontWeight: 600 }}>ROTINA DE PAZ</div>
+          <div data-anim style={{ opacity: 0, marginTop: 44, position: "relative", width: 120, height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1px dashed rgba(139,106,42,.5)", animation: "sa-ringSpin 24s linear infinite" }} />
+            <div style={{ position: "absolute", inset: 12, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(244,222,160,.9), rgba(200,160,80,.55))", boxShadow: "0 0 44px rgba(212,175,55,.5)", animation: "sa-breathe 5.5s ease-in-out infinite" }} />
+            <div style={{ position: "relative", fontSize: 11, letterSpacing: 2, color: P.goldDeep, fontWeight: 700 }}>100%</div>
+          </div>
+          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldText, fontWeight: 700, marginTop: 40 }}>DIAGNÓSTICO CONCLUÍDO · SEU PADRÃO É</div>
+          <h1 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(52px, 14vw, 76px)", fontWeight: 500, color: P.purple, margin: "10px 0 0", lineHeight: 1, textShadow: "0 2px 30px rgba(138,95,176,.25)" }}>{archetype.name}</h1>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 22, color: "#6B5F76", marginTop: 12 }}>{archetype.result.tagline}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 40, textAlign: "left", width: "100%" }}>
+            <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldText, fontWeight: 700, textAlign: "center" }}>VOCÊ SE RECONHECE?</div>
+            {n.dores.map((dor, i) => (
+              <div key={i} data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, lineHeight: 1.45, color: P.ink, borderLeft: `3px solid ${P.gold}`, paddingLeft: 20 }}>{dor}</div>
+            ))}
+            <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 21, lineHeight: 1.5, color: P.purple, textAlign: "center", marginTop: 6 }}>{n.espelho}</div>
+          </div>
+          <button data-anim onClick={() => go(1)} style={{ ...btnGold, opacity: 0, marginTop: 44 }}>CONTINUAR ▸</button>
+        </div>
+      </div>
+
+      {/* ── CENA 1 · A Verdade ── */}
+      <div
+        data-scene="1"
+        style={{ ...sceneBase, overflowY: "auto", padding: 24, background: "radial-gradient(ellipse 120% 90% at 50% 0%, #3B2B52, #241B33)", color: P.cremeText, textAlign: "center" }}
+      >
+        <div style={{ width: "min(500px,100%)", margin: "auto", padding: "40px 0 110px" }}>
+          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldSoft, fontWeight: 700 }}>A VERDADE QUE VOCÊ PRECISA OUVIR</div>
+          <h2 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(30px,8vw,40px)", lineHeight: 1.2, margin: "20px 0 0", color: "#F5EEE2" }}>
+            {n.verdadeTitulo1}
+            <br />
+            <em style={{ color: P.goldSoft }}>{n.verdadeTitulo2}</em>
+          </h2>
+          <div data-anim style={{ opacity: 0, fontSize: 15.5, lineHeight: 1.7, color: "#C9BCDB", marginTop: 18 }} dangerouslySetInnerHTML={{ __html: n.verdadeCorpo }} />
+          <div data-anim style={{ opacity: 0, margin: "32px auto 0", background: "radial-gradient(circle at 50% 0%, rgba(228,200,120,.16), rgba(228,200,120,.04))", border: "1px solid rgba(228,200,120,.4)", borderRadius: 18, padding: "26px 24px" }}>
+            <div style={{ fontSize: 10.5, letterSpacing: 3, color: P.goldSoft, fontWeight: 700 }}>{n.versiculoRef.toUpperCase()}</div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 22, lineHeight: 1.5, color: "#F5EEE2", marginTop: 12 }}>{n.versiculo}</div>
+          </div>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 17, lineHeight: 1.6, color: "#A796BD", marginTop: 22 }}>
+            {n.versiculoNota1}
+            <br />
+            {n.versiculoNota2}
+          </div>
+        </div>
+        <div style={scrimForDark()}>
+          <button data-next onClick={() => go(2)} style={btnDark}>POR QUE NADA FUNCIONOU ▸</button>
+        </div>
+      </div>
+
+      {/* ── CENA 2 · Mecanismo ── */}
+      <div
+        data-scene="2"
+        style={{ ...sceneBase, overflowY: "auto", padding: 24, background: "radial-gradient(ellipse 120% 90% at 50% 100%, #3B2B52, #241B33)", color: P.cremeText }}
+      >
+        <div style={{ width: "min(500px,100%)", textAlign: "center", margin: "auto", padding: "40px 0 110px" }}>
+          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldSoft, fontWeight: 700 }}>O SINAL CERTO SILENCIA O GRITO</div>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 22, color: "#E4D9F0", marginTop: 14 }}>
+            Alarme não se desliga com esforço. <span style={{ color: P.goldSoft }}>Desliga com sinal.</span>
+          </div>
+          <div style={{ position: "relative", marginTop: 28, textAlign: "left" }}>
+            <div data-circuit style={{ position: "absolute", left: 29, top: 24, width: 2, height: 0, background: "linear-gradient(180deg,#E4C878,rgba(228,200,120,.2))", boxShadow: "0 0 14px rgba(228,200,120,.7)" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {boxes.map((box, i) => (
+                <div key={i} data-anim style={{ opacity: 0, display: "flex", gap: 14, alignItems: "flex-start", position: "relative" }}>
+                  <div style={{ flex: "none", width: 60, height: 60, borderRadius: "50%", background: "radial-gradient(circle,#463463,#31254A)", border: "1px solid rgba(228,200,120,.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, boxShadow: "0 0 26px rgba(228,200,120,.15)" }}>{box.icone}</div>
+                  <div style={{ flex: 1, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 16, padding: "16px 18px" }}>
+                    <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 21, fontWeight: 600, color: P.goldSoft }}>{box.titulo}</div>
+                    <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#C9BCDB", marginTop: 7 }}>{box.textoCurto}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 20, color: "#E4D9F0", marginTop: 26 }}>
+            Tem um nome pra isso: <span style={{ color: P.goldSoft }}>Neurofé.</span>
+          </div>
+        </div>
+        <div style={scrimForDark()}>
+          <button data-next onClick={() => go(3)} style={btnDark}>E O QUE MUDA? ▸</button>
+        </div>
+      </div>
+
+      {/* ── CENA 3 · Imagine ── */}
+      <div
+        data-scene="3"
+        style={{ ...sceneBase, justifyContent: "flex-end", textAlign: "center" }}
+      >
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+          <img src={descanso} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", animation: "sa-kenburns 20s ease-out infinite alternate" }} />
+        </div>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(246,240,228,.15) 30%, rgba(246,240,228,.92) 62%, #F6F0E4 82%)" }} />
+        <div style={{ position: "relative", width: "min(500px,100%)", padding: "0 26px 110px", boxSizing: "border-box" }}>
+          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldText, fontWeight: 700 }}>O QUE MUDA QUANDO VOCÊ SE PERMITE PARAR</div>
+          <h2 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(30px,8vw,38px)", lineHeight: 1.15, color: P.ink, margin: "14px 0 0" }}>{n.mudaTitulo}</h2>
+          <div style={{ fontSize: 15.5, lineHeight: 1.75, color: "#5D5368", marginTop: 16 }}>
+            {mudaWords.map((w, i) => (
+              <span key={i} data-w style={{ opacity: 0 }}>{w + " "}</span>
+            ))}
+          </div>
+        </div>
+        <div style={scrimForLight()}>
+          <button data-next onClick={() => go(4)} style={{ ...btnDark, background: P.creme, border: `1.5px solid ${P.goldWarm}`, color: P.goldText, boxShadow: "0 8px 24px rgba(90,70,40,.18)" }}>{ctaLabel} ▸</button>
+        </div>
+      </div>
+
+      {/* ── CENA 4 · CTA (→ onContinue) ── */}
+      <div
+        data-scene="4"
+        style={{ ...sceneBase, overflowY: "auto", padding: 24, textAlign: "center", background: "radial-gradient(ellipse 130% 80% at 50% 110%, rgba(212,175,55,.28), rgba(246,240,228,0) 60%), #F6F0E4" }}
+      >
+        <div style={{ width: "min(460px,100%)", display: "flex", flexDirection: "column", alignItems: "center", margin: "auto", padding: "40px 0" }}>
+          <div data-anim style={{ opacity: 0, width: "100%", maxWidth: 280, borderRadius: 24, overflow: "hidden", boxShadow: "0 24px 60px rgba(90,70,40,.25)", border: "3px solid rgba(212,175,55,.5)" }}>
+            <img src={jaquelineImg} alt="Jaqueline" style={{ width: "100%", display: "block" }} />
+          </div>
+          <div data-anim style={{ opacity: 0, fontSize: 15.5, lineHeight: 1.7, color: P.ink, marginTop: 30 }} dangerouslySetInnerHTML={{ __html: n.proximoPasso }} />
+          <button
+            data-anim
+            onClick={onContinue}
+            style={{ ...btnGold, opacity: 0, marginTop: 28, fontSize: 15, letterSpacing: 1.5, padding: "19px 44px", animation: "sa-shine 3s linear infinite, sa-ctaGlow 2.8s ease-in-out infinite" }}
           >
-            <button
-              onClick={onContinue}
-              className="rdp-btn-gradient-hover flex w-full items-center justify-center gap-2 rounded-full px-6 py-[18px] text-[14px] font-semibold uppercase tracking-[0.12em] text-white"
-            >
-              <span>{bridgeCopy.cta}</span>
-              <span aria-hidden>{"\u2192"}</span>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.section>
+            {ctaLabel} →
+          </button>
+          <div data-anim style={{ opacity: 0, fontSize: 12, color: "#8A7C93", marginTop: 14 }}>Leva 3 minutos · Sem compromisso</div>
+        </div>
+      </div>
+
+      {/* voltar */}
+      <button
+        onClick={() => go(cur - 1)}
+        aria-label="Voltar"
+        style={{ position: "absolute", top: "calc(28px + env(safe-area-inset-top))", left: "calc(10px + env(safe-area-inset-left))", zIndex: 45, background: "none", border: "none", color: "rgba(110,90,60,.6)", fontSize: 20, cursor: "pointer", padding: 8, display: cur === 0 ? "none" : "block" }}
+      >
+        ‹
+      </button>
+    </div>
   );
 }
