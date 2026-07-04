@@ -243,15 +243,9 @@ export function ResultScreen({
     });
   }, [cur]);
 
-  // ── Teclado: →/Espaço avança, ← volta ──
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " ") go(cur + 1);
-      else if (e.key === "ArrowLeft") go(cur - 1);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [go, cur]);
+  // Navegação por teclado removida de propósito: num funil mobile-first ela
+  // "sequestrava" a barra de espaço (rolar a página) e as setas, avançando/pulando
+  // cenas sem querer (ia direto pro último slide). Os botões seguem acessíveis via Tab+Enter.
 
   // ── Partículas de ouro (+ ~18% roxas) ──
   useEffect(() => {
