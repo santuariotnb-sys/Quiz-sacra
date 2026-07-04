@@ -112,6 +112,7 @@ export function ResultScreen({
   const mudaWords = (n.mudaCorpo || "").replace(/<\/?b>/g, "").split(" ");
 
   const [cur, setCur] = useState(0);
+  const curRef = useRef(0); // ref = valor instantâneo, sem stale closure
   const rootRef = useRef<HTMLDivElement>(null);
   const animating = useRef(false);
   const rafRef = useRef<number | null>(null);
@@ -125,62 +126,37 @@ export function ResultScreen({
     [],
   );
 
-  // ── Navegação entre cenas ──────────────────────────────────────────
-  const go = useCallback(
-    (target: number) => {
-      if (animating.current || target < 0 || target >= SCENES || target === cur) return;
-      const root = rootRef.current;
-      if (!root) return;
-      const reduce = prefersReducedMotion();
-      const out = root.querySelector<HTMLElement>(`[data-scene="${cur}"]`);
-      animating.current = true;
-      if (out) {
-        out.style.pointerEvents = "none";
-        if (!reduce)
-          out.animate(
-            [
-              { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
-              { opacity: 0, transform: "scale(1.04)", filter: "blur(6px)" },
-            ],
-            { duration: 550, easing: "ease-in", fill: "both" },
-          );
-      }
-      timeoutRef.current = window.setTimeout(
-        () => {
-          setCur(target);
-          animating.current = false;
-        },
-        reduce ? 0 : 380,
-      );
-    },
-    [cur],
-  );
-
-  // ── Entrada da cena atual (container + cascata data-anim + fio + palavras + progresso) ──
-  useEffect(() => {
+  // ── Helper: esconde TODAS as cenas e desabilita interação ──
+  const lockAllScenes = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
-    const el = root.querySelector<HTMLElement>(`[data-scene="${cur}"]`);
-    if (!el) return;
-
-    // cancela fills antigos desta cena (evita estado preso ao reentrar)
-    el.getAnimations({ subtree: true }).forEach((a) => a.cancel());
-
-    // Garante que TODAS as cenas inativas fiquem invisíveis e não-clicáveis.
-    // Sem isso, WAAPI fill:"both" pode vazar estado entre cenas e causar
-    // saltos (ex.: cena 1 → cena 4 pulando 2 e 3).
     root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
-      if (s !== el) {
-        s.getAnimations({ subtree: false }).forEach((a) => a.cancel());
-        s.style.opacity = "0";
-        s.style.pointerEvents = "none";
-      }
+      s.style.pointerEvents = "none";
+    });
+  }, []);
+
+  // ── Helper: mostra UMA cena e esconde todas as outras ──
+  // Baseado no showScene() do protótipo original — estado explícito,
+  // não depende de WAAPI fill para controle de visibilidade.
+  const showScene = useCallback((idx: number) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const reduce = prefersReducedMotion();
+
+    // 1. Cancela tudo e esconde TODAS as cenas
+    root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
+      s.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+      s.style.opacity = "0";
+      s.style.pointerEvents = "none";
     });
 
+    // 2. Pega a cena alvo
+    const el = root.querySelector<HTMLElement>(`[data-scene="${idx}"]`);
+    if (!el) return;
     el.style.pointerEvents = "auto";
 
-    // prefers-reduced-motion: mostra a cena já no estado final, sem WAAPI/blur/scale.
-    if (prefersReducedMotion()) {
+    // 3. reduced-motion: estado final direto, sem animação
+    if (reduce) {
       el.style.opacity = "1";
       el.style.transform = "none";
       el.style.filter = "none";
@@ -196,55 +172,122 @@ export function ResultScreen({
       const wireStatic = el.querySelector<HTMLElement>("[data-circuit]");
       if (wireStatic) wireStatic.style.height = "calc(100% - 48px)";
       root.querySelectorAll<HTMLElement>("[data-seg]").forEach((seg, i) => {
-        seg.style.width = i <= cur ? "100%" : "0%";
+        seg.style.width = i <= idx ? "100%" : "0%";
       });
       return;
     }
 
-    el.animate(
+    // 4. Animação de entrada do container (fade+scale+deblur)
+    const entryAnim = el.animate(
       [
         { opacity: 0, transform: "scale(.97)", filter: "blur(8px)" },
         { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
       ],
-      { duration: cur === 0 ? 900 : 750, easing: EASE, fill: "both" },
+      { duration: idx === 0 ? 900 : 750, easing: EASE, fill: "forwards" },
     );
+    // Safety: aplica inline style quando terminar (não depende do fill)
+    entryAnim.finished.then(() => {
+      el.style.opacity = "1";
+      el.style.transform = "none";
+      el.style.filter = "none";
+    }).catch(() => {
+      // cancelada → garante visibilidade mesmo assim
+      el.style.opacity = "1";
+    });
 
-    el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a, i) =>
-      a.animate(
+    // 5. Cascata data-anim (elementos internos: labels, textos, botões)
+    el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a, i) => {
+      const da = a.animate(
         [
           { opacity: 0, transform: "translateY(30px)", filter: "blur(6px)" },
           { opacity: 1, transform: "translateY(0px)", filter: "blur(0px)" },
         ],
-        { duration: 850, delay: 250 + i * 220, easing: EASE, fill: "both" },
-      ),
-    );
+        { duration: 850, delay: 250 + i * 220, easing: EASE, fill: "forwards" },
+      );
+      da.finished.then(() => {
+        a.style.opacity = "1";
+        a.style.transform = "none";
+        a.style.filter = "none";
+      }).catch(() => { a.style.opacity = "1"; });
+    });
 
+    // 6. Fio de luz vertical (cena Mecanismo)
     const wire = el.querySelector<HTMLElement>("[data-circuit]");
-    if (wire)
-      wire.animate([{ height: "0px" }, { height: "calc(100% - 48px)" }], {
-        duration: 1800,
-        delay: 500,
-        easing: "ease-out",
-        fill: "both",
-      });
+    if (wire) {
+      const wa = wire.animate(
+        [{ height: "0px" }, { height: "calc(100% - 48px)" }],
+        { duration: 1800, delay: 500, easing: "ease-out", fill: "forwards" },
+      );
+      wa.finished.then(() => { wire.style.height = "calc(100% - 48px)"; }).catch(() => {});
+    }
 
-    el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp, i) =>
-      sp.animate([{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0px)" }], {
-        duration: 450,
-        delay: 600 + i * 60,
-        easing: "ease-out",
-        fill: "both",
-      }),
-    );
+    // 7. Palavras word-by-word (cena Imagine)
+    el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp, i) => {
+      const wa = sp.animate(
+        [{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0px)" }],
+        { duration: 450, delay: 600 + i * 60, easing: "ease-out", fill: "forwards" },
+      );
+      wa.finished.then(() => { sp.style.opacity = "1"; sp.style.filter = "none"; }).catch(() => { sp.style.opacity = "1"; });
+    });
 
+    // 8. Barra de progresso
     root.querySelectorAll<HTMLElement>("[data-seg]").forEach((seg, i) => {
-      if (i < cur) seg.style.width = "100%";
-      else if (i === cur) {
+      if (i < idx) seg.style.width = "100%";
+      else if (i === idx) {
         seg.style.width = "0%";
-        seg.animate([{ width: "0%" }, { width: "100%" }], { duration: 900, delay: 200, easing: "ease-out", fill: "both" });
+        const sa = seg.animate(
+          [{ width: "0%" }, { width: "100%" }],
+          { duration: 900, delay: 200, easing: "ease-out", fill: "forwards" },
+        );
+        sa.finished.then(() => { seg.style.width = "100%"; }).catch(() => {});
       } else seg.style.width = "0%";
     });
-  }, [cur]);
+  }, []);
+
+  // ── Navegação (port fiel do protótipo original) ───────────────────
+  // Usa curRef para valor instantâneo — sem stale closure, sem useCallback[cur].
+  const go = useCallback(
+    (target: number) => {
+      if (animating.current || target < 0 || target >= SCENES || target === curRef.current) return;
+      const root = rootRef.current;
+      if (!root) return;
+      animating.current = true;
+
+      // Lock imediato: TODAS as cenas ficam não-clicáveis no instante do toque
+      lockAllScenes();
+
+      // Animação de saída da cena atual
+      const reduce = prefersReducedMotion();
+      const out = root.querySelector<HTMLElement>(`[data-scene="${curRef.current}"]`);
+      if (out && !reduce) {
+        out.animate(
+          [
+            { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
+            { opacity: 0, transform: "scale(1.04)", filter: "blur(6px)" },
+          ],
+          { duration: 550, easing: "ease-in", fill: "forwards" },
+        );
+      }
+
+      // Atualiza ref IMEDIATAMENTE (como this.cur = n no protótipo)
+      curRef.current = target;
+
+      timeoutRef.current = window.setTimeout(
+        () => {
+          setCur(target); // re-render + showScene via useEffect
+          animating.current = false;
+        },
+        reduce ? 0 : 380,
+      );
+    },
+    [lockAllScenes],
+  );
+
+  // ── Entrada da cena atual ─────────────────────────────────────────
+  useEffect(() => {
+    curRef.current = cur;
+    showScene(cur);
+  }, [cur, showScene]);
 
   // Navegação por teclado removida de propósito: num funil mobile-first ela
   // "sequestrava" a barra de espaço (rolar a página) e as setas, avançando/pulando
