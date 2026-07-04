@@ -95,10 +95,9 @@ function loadSavedState(): SavedState | null {
       localStorage.removeItem(SAVED_KEY);
       return null;
     }
-    // Só retoma funil INACABADO. Restaurar "result"/"offer" de uma rodada antiga
-    // (respostas velhas → arquétipo errado; ou pulo direto pra oferta) é bug: quem
-    // já terminou recomeça limpo. Ver telas A/B.
-    const validStages: Stage[] = ["questions", "contact"];
+    // Retoma qualquer estágio salvo (exceto hero/loading que são transientes).
+    // O TTL de 48h já protege contra respostas muito velhas.
+    const validStages: Stage[] = ["questions", "contact", "result", "offer"];
     if (
       validStages.includes(s?.stage) &&
       s?.answers &&

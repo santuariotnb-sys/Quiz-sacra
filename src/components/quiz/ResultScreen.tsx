@@ -166,18 +166,21 @@ export function ResultScreen({
     // cancela fills antigos desta cena (evita estado preso ao reentrar)
     el.getAnimations({ subtree: true }).forEach((a) => a.cancel());
 
+    // Garante que TODAS as cenas inativas fiquem invisíveis e não-clicáveis.
+    // Sem isso, WAAPI fill:"both" pode vazar estado entre cenas e causar
+    // saltos (ex.: cena 1 → cena 4 pulando 2 e 3).
+    root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
+      if (s !== el) {
+        s.getAnimations({ subtree: false }).forEach((a) => a.cancel());
+        s.style.opacity = "0";
+        s.style.pointerEvents = "none";
+      }
+    });
+
     el.style.pointerEvents = "auto";
 
     // prefers-reduced-motion: mostra a cena já no estado final, sem WAAPI/blur/scale.
     if (prefersReducedMotion()) {
-      // sem fade de saída, então garantimos aqui que só a cena atual fica visível
-      // (senão as cenas empilham e a navegação fica imprevisível).
-      root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
-        if (s !== el) {
-          s.style.opacity = "0";
-          s.style.pointerEvents = "none";
-        }
-      });
       el.style.opacity = "1";
       el.style.transform = "none";
       el.style.filter = "none";
