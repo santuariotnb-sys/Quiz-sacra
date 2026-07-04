@@ -740,6 +740,7 @@ export function OfferScreen({
               type="button"
               onClick={onCheckout}
               aria-label={ctaLabel}
+              className="sa-cta-keep"
               style={{
                 display: "block",
                 width: "100%",
@@ -842,6 +843,7 @@ export function OfferScreen({
             type="button"
             onClick={onCheckout}
             aria-label={ctaLabel}
+            className="sa-cta-keep"
             style={{
               display: "inline-block",
               marginTop: 26,

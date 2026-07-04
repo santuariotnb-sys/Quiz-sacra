@@ -380,16 +380,17 @@ export function ResultScreen({
             ))}
             <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 21, lineHeight: 1.5, color: P.purple, textAlign: "center", marginTop: 6 }}>{n.espelho}</div>
           </div>
-          <button data-anim onClick={() => go(1)} style={{ ...btnGold, opacity: 0, marginTop: 44 }}>CONTINUAR ▸</button>
+          <button data-anim className="sa-cta-keep" onClick={() => go(1)} style={{ ...btnGold, opacity: 0, marginTop: 44 }}>CONTINUAR ▸</button>
         </div>
       </div>
 
       {/* ── CENA 1 · A Verdade ── */}
       <div
         data-scene="1"
-        style={{ ...sceneBase, overflowY: "auto", padding: 24, background: "radial-gradient(ellipse 120% 90% at 50% 0%, #3B2B52, #241B33)", color: P.cremeText, textAlign: "center" }}
+        style={{ ...sceneBase, overflow: "hidden", background: "radial-gradient(ellipse 120% 90% at 50% 0%, #3B2B52, #241B33)", color: P.cremeText, textAlign: "center" }}
       >
-        <div style={{ width: "min(500px,100%)", margin: "auto", padding: "40px 0 110px" }}>
+        <div style={{ flex: 1, width: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
+        <div style={{ width: "min(500px,100%)", margin: "auto", padding: "40px 24px 190px" }}>
           <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldSoft, fontWeight: 700 }}>A VERDADE QUE VOCÊ PRECISA OUVIR</div>
           <h2 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(30px,8vw,40px)", lineHeight: 1.2, margin: "20px 0 0", color: "#F5EEE2" }}>
             {n.verdadeTitulo1}
@@ -407,6 +408,7 @@ export function ResultScreen({
             {n.versiculoNota2}
           </div>
         </div>
+        </div>
         <div style={scrimForDark()}>
           <button data-next onClick={() => go(2)} style={btnDark}>POR QUE NADA FUNCIONOU ▸</button>
         </div>
@@ -415,9 +417,10 @@ export function ResultScreen({
       {/* ── CENA 2 · Mecanismo ── */}
       <div
         data-scene="2"
-        style={{ ...sceneBase, overflowY: "auto", padding: 24, background: "radial-gradient(ellipse 120% 90% at 50% 100%, #3B2B52, #241B33)", color: P.cremeText }}
+        style={{ ...sceneBase, overflow: "hidden", background: "radial-gradient(ellipse 120% 90% at 50% 100%, #3B2B52, #241B33)", color: P.cremeText }}
       >
-        <div style={{ width: "min(500px,100%)", textAlign: "center", margin: "auto", padding: "40px 0 110px" }}>
+        <div style={{ flex: 1, width: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
+        <div style={{ width: "min(500px,100%)", textAlign: "center", margin: "auto", padding: "40px 24px 190px" }}>
           <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldSoft, fontWeight: 700 }}>O SINAL CERTO SILENCIA O GRITO</div>
           <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 22, color: "#E4D9F0", marginTop: 14 }}>
             Alarme não se desliga com esforço. <span style={{ color: P.goldSoft }}>Desliga com sinal.</span>
@@ -440,6 +443,7 @@ export function ResultScreen({
             Tem um nome pra isso: <span style={{ color: P.goldSoft }}>Neurofé.</span>
           </div>
         </div>
+        </div>
         <div style={scrimForDark()}>
           <button data-next onClick={() => go(3)} style={btnDark}>E O QUE MUDA? ▸</button>
         </div>
@@ -454,7 +458,7 @@ export function ResultScreen({
           <img src={descanso} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", animation: "sa-kenburns 20s ease-out infinite alternate" }} />
         </div>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(246,240,228,.15) 30%, rgba(246,240,228,.92) 62%, #F6F0E4 82%)" }} />
-        <div style={{ position: "relative", width: "min(500px,100%)", padding: "0 26px 110px", boxSizing: "border-box" }}>
+        <div style={{ position: "relative", width: "min(500px,100%)", padding: "0 26px 160px", boxSizing: "border-box" }}>
           <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldText, fontWeight: 700 }}>O QUE MUDA QUANDO VOCÊ SE PERMITE PARAR</div>
           <h2 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(30px,8vw,38px)", lineHeight: 1.15, color: P.ink, margin: "14px 0 0" }}>{n.mudaTitulo}</h2>
           <div style={{ fontSize: 15.5, lineHeight: 1.75, color: "#5D5368", marginTop: 16 }}>
@@ -480,6 +484,7 @@ export function ResultScreen({
           <div data-anim style={{ opacity: 0, fontSize: 15.5, lineHeight: 1.7, color: P.ink, marginTop: 30 }} dangerouslySetInnerHTML={{ __html: n.proximoPasso }} />
           <button
             data-anim
+            className="sa-cta-keep"
             onClick={onContinue}
             style={{ ...btnGold, opacity: 0, marginTop: 28, fontSize: 15, letterSpacing: 1.5, padding: "19px 44px", animation: "sa-shine 3s linear infinite, sa-ctaGlow 2.8s ease-in-out infinite" }}
           >

@@ -395,7 +395,9 @@ input, select, textarea {
 @media (prefers-reduced-motion: reduce) {
   .rdp-arch-in { animation: none; opacity: 1; filter: none; transform: none; letter-spacing: .01em; }
   .rdp-bob { animation: none; }
-  [style*="animation"] { animation: none !important; }
+  /* Mata animações inline, EXCETO os CTAs marcados .sa-cta-keep — decisão do dono:
+     o botão principal pulsa/brilha sempre (conversão), mesmo com reduce-motion. */
+  [style*="animation"]:not(.sa-cta-keep) { animation: none !important; }
   /* Telas Neurofé: mata as transições inline (Reveal/ScarcityBar/VSL/carrossel).
      O JS do canvas de partículas e das transições WAAPI é tratado em ResultScreen.tsx. */
   [style*="transition"] { transition: none !important; }
