@@ -142,10 +142,14 @@ export function ResultScreen({
     if (!root) return;
     const reduce = prefersReducedMotion();
 
-    // 1. Cancela TUDO e esconde TODAS as cenas
+    // 1. Cancela TUDO e esconde TODAS as cenas.
+    // visibility:"hidden" é OBRIGATÓRIO — pointerEvents:"none" no pai NÃO bloqueia
+    // filhos com pointerEvents:"auto" (btnDark). Sem visibility, botões de cenas
+    // invisíveis interceptam toques e causam saltos (ex.: cena 0 → cena 4).
     root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
       s.getAnimations({ subtree: true }).forEach((a) => a.cancel());
       s.style.opacity = "0";
+      s.style.visibility = "hidden";
       s.style.pointerEvents = "none";
       s.style.transform = "none";
       s.style.filter = "none";
@@ -154,11 +158,13 @@ export function ResultScreen({
     // 2. Pega a cena alvo
     const el = root.querySelector<HTMLElement>(`[data-scene="${idx}"]`);
     if (!el) return;
+    el.style.visibility = "visible";
     el.style.pointerEvents = "auto";
 
     // 3. reduced-motion: estado final direto
     if (reduce) {
       el.style.opacity = "1";
+      el.style.visibility = "visible";
       el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a) => {
         a.style.opacity = "1"; a.style.transform = "none"; a.style.filter = "none";
       });
@@ -317,6 +323,7 @@ export function ResultScreen({
     inset: 0,
     zIndex: 10,
     opacity: 0,
+    visibility: "hidden" as const,
     pointerEvents: "none",
     display: "flex",
     flexDirection: "column",
