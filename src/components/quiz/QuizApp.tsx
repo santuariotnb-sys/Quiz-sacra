@@ -346,7 +346,10 @@ export function QuizApp() {
   // Funnel: result/offer/contact stage beacons (1× per session per stage)
   useEffect(() => {
     if (preview) return;
-    const steps: Record<string, string> = { contact: "contact_gate", result: "result", offer: "offer" };
+    // "contact" (não "contact_gate"): o CHECK de quiz_funnel_events.stage em PROD
+    // só aceita arrival/question/contact/result/offer/cta. "contact_gate" dava 400
+    // (23514) e o evento de funil de contato se perdia no admin.
+    const steps: Record<string, string> = { contact: "contact", result: "result", offer: "offer" };
     const stepName = steps[stage];
     if (!stepName || firedStagesRef.current.has(stepName)) return;
     firedStagesRef.current.add(stepName);
