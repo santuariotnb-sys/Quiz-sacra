@@ -126,28 +126,29 @@ export function ResultScreen({
     [],
   );
 
-  // ── Helper: esconde TODAS as cenas e desabilita interação ──
-  const lockAllScenes = useCallback(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
-      s.style.pointerEvents = "none";
+  // ── Helper: aplica inline styles finais e cancela WAAPI (libera scroll/transform) ──
+  const commitAnim = (a: Animation, el: HTMLElement, styles: Record<string, string>) => {
+    a.finished.then(() => {
+      Object.assign(el.style, styles);
+      a.cancel(); // remove fill effect — libera transform/filter que trava scroll no iOS
+    }).catch(() => {
+      Object.assign(el.style, styles);
     });
-  }, []);
+  };
 
   // ── Helper: mostra UMA cena e esconde todas as outras ──
-  // Baseado no showScene() do protótipo original — estado explícito,
-  // não depende de WAAPI fill para controle de visibilidade.
   const showScene = useCallback((idx: number) => {
     const root = rootRef.current;
     if (!root) return;
     const reduce = prefersReducedMotion();
 
-    // 1. Cancela tudo e esconde TODAS as cenas
+    // 1. Cancela TUDO e esconde TODAS as cenas
     root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
       s.getAnimations({ subtree: true }).forEach((a) => a.cancel());
       s.style.opacity = "0";
       s.style.pointerEvents = "none";
+      s.style.transform = "none";
+      s.style.filter = "none";
     });
 
     // 2. Pega a cena alvo
@@ -155,132 +156,92 @@ export function ResultScreen({
     if (!el) return;
     el.style.pointerEvents = "auto";
 
-    // 3. reduced-motion: estado final direto, sem animação
+    // 3. reduced-motion: estado final direto
     if (reduce) {
       el.style.opacity = "1";
-      el.style.transform = "none";
-      el.style.filter = "none";
       el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a) => {
-        a.style.opacity = "1";
-        a.style.transform = "none";
-        a.style.filter = "none";
+        a.style.opacity = "1"; a.style.transform = "none"; a.style.filter = "none";
       });
       el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp) => {
-        sp.style.opacity = "1";
-        sp.style.filter = "none";
+        sp.style.opacity = "1"; sp.style.filter = "none";
       });
-      const wireStatic = el.querySelector<HTMLElement>("[data-circuit]");
-      if (wireStatic) wireStatic.style.height = "calc(100% - 48px)";
+      const w = el.querySelector<HTMLElement>("[data-circuit]");
+      if (w) w.style.height = "calc(100% - 48px)";
       root.querySelectorAll<HTMLElement>("[data-seg]").forEach((seg, i) => {
         seg.style.width = i <= idx ? "100%" : "0%";
       });
       return;
     }
 
-    // 4. Animação de entrada do container (fade+scale+deblur)
-    const entryAnim = el.animate(
-      [
-        { opacity: 0, transform: "scale(.97)", filter: "blur(8px)" },
-        { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
-      ],
-      { duration: idx === 0 ? 900 : 750, easing: EASE, fill: "forwards" },
+    // 4. Entrada do container
+    commitAnim(
+      el.animate(
+        [{ opacity: 0, transform: "scale(.97)", filter: "blur(8px)" },
+         { opacity: 1, transform: "scale(1)", filter: "blur(0px)" }],
+        { duration: idx === 0 ? 900 : 750, easing: EASE, fill: "forwards" },
+      ), el, { opacity: "1", transform: "none", filter: "none" },
     );
-    // Safety: aplica inline style quando terminar (não depende do fill)
-    entryAnim.finished.then(() => {
-      el.style.opacity = "1";
-      el.style.transform = "none";
-      el.style.filter = "none";
-    }).catch(() => {
-      // cancelada → garante visibilidade mesmo assim
-      el.style.opacity = "1";
-    });
 
-    // 5. Cascata data-anim (elementos internos: labels, textos, botões)
+    // 5. Cascata data-anim
     el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a, i) => {
-      const da = a.animate(
-        [
-          { opacity: 0, transform: "translateY(30px)", filter: "blur(6px)" },
-          { opacity: 1, transform: "translateY(0px)", filter: "blur(0px)" },
-        ],
-        { duration: 850, delay: 250 + i * 220, easing: EASE, fill: "forwards" },
+      commitAnim(
+        a.animate(
+          [{ opacity: 0, transform: "translateY(30px)", filter: "blur(6px)" },
+           { opacity: 1, transform: "translateY(0)", filter: "blur(0)" }],
+          { duration: 850, delay: 250 + i * 220, easing: EASE, fill: "forwards" },
+        ), a, { opacity: "1", transform: "none", filter: "none" },
       );
-      da.finished.then(() => {
-        a.style.opacity = "1";
-        a.style.transform = "none";
-        a.style.filter = "none";
-      }).catch(() => { a.style.opacity = "1"; });
     });
 
-    // 6. Fio de luz vertical (cena Mecanismo)
+    // 6. Fio de luz (Mecanismo)
     const wire = el.querySelector<HTMLElement>("[data-circuit]");
     if (wire) {
-      const wa = wire.animate(
-        [{ height: "0px" }, { height: "calc(100% - 48px)" }],
-        { duration: 1800, delay: 500, easing: "ease-out", fill: "forwards" },
+      commitAnim(
+        wire.animate([{ height: "0px" }, { height: "calc(100% - 48px)" }],
+          { duration: 1800, delay: 500, easing: "ease-out", fill: "forwards" }),
+        wire, { height: "calc(100% - 48px)" },
       );
-      wa.finished.then(() => { wire.style.height = "calc(100% - 48px)"; }).catch(() => {});
     }
 
-    // 7. Palavras word-by-word (cena Imagine)
+    // 7. Palavras (Imagine)
     el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp, i) => {
-      const wa = sp.animate(
-        [{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0px)" }],
-        { duration: 450, delay: 600 + i * 60, easing: "ease-out", fill: "forwards" },
+      commitAnim(
+        sp.animate([{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0)" }],
+          { duration: 450, delay: 600 + i * 60, easing: "ease-out", fill: "forwards" }),
+        sp, { opacity: "1", filter: "none" },
       );
-      wa.finished.then(() => { sp.style.opacity = "1"; sp.style.filter = "none"; }).catch(() => { sp.style.opacity = "1"; });
     });
 
-    // 8. Barra de progresso
+    // 8. Progresso
     root.querySelectorAll<HTMLElement>("[data-seg]").forEach((seg, i) => {
       if (i < idx) seg.style.width = "100%";
       else if (i === idx) {
         seg.style.width = "0%";
-        const sa = seg.animate(
-          [{ width: "0%" }, { width: "100%" }],
-          { duration: 900, delay: 200, easing: "ease-out", fill: "forwards" },
+        commitAnim(
+          seg.animate([{ width: "0%" }, { width: "100%" }],
+            { duration: 900, delay: 200, easing: "ease-out", fill: "forwards" }),
+          seg, { width: "100%" },
         );
-        sa.finished.then(() => { seg.style.width = "100%"; }).catch(() => {});
       } else seg.style.width = "0%";
     });
   }, []);
 
-  // ── Navegação (port fiel do protótipo original) ───────────────────
-  // Usa curRef para valor instantâneo — sem stale closure, sem useCallback[cur].
+  // ── Navegação — SEM setTimeout, troca imediata ────────────────────
   const go = useCallback(
     (target: number) => {
       if (animating.current || target < 0 || target >= SCENES || target === curRef.current) return;
-      const root = rootRef.current;
-      if (!root) return;
       animating.current = true;
 
-      // Lock imediato: TODAS as cenas ficam não-clicáveis no instante do toque
-      lockAllScenes();
-
-      // Animação de saída da cena atual
-      const reduce = prefersReducedMotion();
-      const out = root.querySelector<HTMLElement>(`[data-scene="${curRef.current}"]`);
-      if (out && !reduce) {
-        out.animate(
-          [
-            { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
-            { opacity: 0, transform: "scale(1.04)", filter: "blur(6px)" },
-          ],
-          { duration: 550, easing: "ease-in", fill: "forwards" },
-        );
-      }
-
-      // Atualiza ref IMEDIATAMENTE (como this.cur = n no protótipo)
+      // Atualiza ref + state IMEDIATAMENTE — sem setTimeout, sem stale closure
       curRef.current = target;
+      setCur(target); // dispara useEffect → showScene(target)
 
-      timeoutRef.current = window.setTimeout(
-        () => {
-          setCur(target); // re-render + showScene via useEffect
-          animating.current = false;
-        },
-        reduce ? 0 : 380,
-      );
+      // Reabilita interação após a entrada completar
+      timeoutRef.current = window.setTimeout(() => {
+        animating.current = false;
+      }, prefersReducedMotion() ? 100 : 800);
     },
-    [lockAllScenes],
+    [],
   );
 
   // ── Entrada da cena atual ─────────────────────────────────────────
@@ -412,24 +373,24 @@ export function ResultScreen({
           <img src={luzDourada} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", animation: "sa-kenburns 18s ease-out infinite alternate" }} />
         </div>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(246,240,228,.55), rgba(246,240,228,.25) 45%, rgba(246,240,228,.8))" }} />
-        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", margin: "auto", padding: "40px 0 60px", width: "min(480px,100%)" }}>
-          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 14, letterSpacing: 6, color: P.goldText, fontWeight: 600 }}>ROTINA DE PAZ</div>
-          <div data-anim style={{ opacity: 0, marginTop: 44, position: "relative", width: 120, height: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", margin: "auto", padding: "24px 0 36px", width: "min(480px,100%)" }}>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 13, letterSpacing: 5, color: P.goldText, fontWeight: 600 }}>ROTINA DE PAZ</div>
+          <div data-anim style={{ opacity: 0, marginTop: 20, position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1px dashed rgba(139,106,42,.5)", animation: "sa-ringSpin 24s linear infinite" }} />
-            <div style={{ position: "absolute", inset: 12, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(244,222,160,.9), rgba(200,160,80,.55))", boxShadow: "0 0 44px rgba(212,175,55,.5)", animation: "sa-breathe 5.5s ease-in-out infinite" }} />
-            <div style={{ position: "relative", fontSize: 11, letterSpacing: 2, color: P.goldDeep, fontWeight: 700 }}>100%</div>
+            <div style={{ position: "absolute", inset: 10, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(244,222,160,.9), rgba(200,160,80,.55))", boxShadow: "0 0 34px rgba(212,175,55,.5)", animation: "sa-breathe 5.5s ease-in-out infinite" }} />
+            <div style={{ position: "relative", fontSize: 10, letterSpacing: 2, color: P.goldDeep, fontWeight: 700 }}>100%</div>
           </div>
-          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldText, fontWeight: 700, marginTop: 40 }}>DIAGNÓSTICO CONCLUÍDO · SEU PADRÃO É</div>
-          <h1 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(52px, 14vw, 76px)", fontWeight: 500, color: P.purple, margin: "10px 0 0", lineHeight: 1, textShadow: "0 2px 30px rgba(138,95,176,.25)" }}>{archetype.name}</h1>
-          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 22, color: "#6B5F76", marginTop: 12 }}>{archetype.result.tagline}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 40, textAlign: "left", width: "100%" }}>
-            <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldText, fontWeight: 700, textAlign: "center" }}>VOCÊ SE RECONHECE?</div>
+          <div data-anim style={{ opacity: 0, fontSize: 10, letterSpacing: 3, color: P.goldText, fontWeight: 700, marginTop: 18 }}>DIAGNÓSTICO CONCLUÍDO · SEU PADRÃO É</div>
+          <h1 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(40px, 11vw, 64px)", fontWeight: 500, color: P.purple, margin: "6px 0 0", lineHeight: 1, textShadow: "0 2px 30px rgba(138,95,176,.25)" }}>{archetype.name}</h1>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 19, color: "#6B5F76", marginTop: 8 }}>{archetype.result.tagline}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 22, textAlign: "left", width: "100%" }}>
+            <div data-anim style={{ opacity: 0, fontSize: 10, letterSpacing: 3, color: P.goldText, fontWeight: 700, textAlign: "center" }}>VOCÊ SE RECONHECE?</div>
             {n.dores.map((dor, i) => (
-              <div key={i} data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, lineHeight: 1.45, color: P.ink, borderLeft: `3px solid ${P.gold}`, paddingLeft: 20 }}>{dor}</div>
+              <div key={i} data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 20, lineHeight: 1.4, color: P.ink, borderLeft: `3px solid ${P.gold}`, paddingLeft: 16 }}>{dor}</div>
             ))}
-            <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 21, lineHeight: 1.5, color: P.purple, textAlign: "center", marginTop: 6 }}>{n.espelho}</div>
+            <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 18, lineHeight: 1.45, color: P.purple, textAlign: "center", marginTop: 4 }}>{n.espelho}</div>
           </div>
-          <button data-anim className="sa-cta-keep" onClick={() => go(1)} style={{ ...btnGold, opacity: 0, marginTop: 44 }}>CONTINUAR ▸</button>
+          <button data-anim className="sa-cta-keep" onClick={() => go(1)} style={{ ...btnGold, opacity: 0, marginTop: 24 }}>CONTINUAR ▸</button>
         </div>
       </div>
 
