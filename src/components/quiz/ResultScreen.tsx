@@ -58,6 +58,7 @@ const btnDark: React.CSSProperties = {
   borderRadius: 50,
   cursor: "pointer",
   boxShadow: "0 8px 24px rgba(0,0,0,.4)",
+  animation: "sa-btnPulse 2.4s ease-in-out infinite",
 };
 
 const btnGold: React.CSSProperties = {
@@ -169,6 +170,14 @@ export function ResultScreen({
 
     // prefers-reduced-motion: mostra a cena já no estado final, sem WAAPI/blur/scale.
     if (prefersReducedMotion()) {
+      // sem fade de saída, então garantimos aqui que só a cena atual fica visível
+      // (senão as cenas empilham e a navegação fica imprevisível).
+      root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
+        if (s !== el) {
+          s.style.opacity = "0";
+          s.style.pointerEvents = "none";
+        }
+      });
       el.style.opacity = "1";
       el.style.transform = "none";
       el.style.filter = "none";
@@ -410,7 +419,7 @@ export function ResultScreen({
         </div>
         </div>
         <div style={scrimForDark()}>
-          <button data-next onClick={() => go(2)} style={btnDark}>POR QUE NADA FUNCIONOU ▸</button>
+          <button data-next className="sa-cta-keep" onClick={() => go(2)} style={btnDark}>POR QUE NADA FUNCIONOU ▸</button>
         </div>
       </div>
 
@@ -445,7 +454,7 @@ export function ResultScreen({
         </div>
         </div>
         <div style={scrimForDark()}>
-          <button data-next onClick={() => go(3)} style={btnDark}>E O QUE MUDA? ▸</button>
+          <button data-next className="sa-cta-keep" onClick={() => go(3)} style={btnDark}>E O QUE MUDA? ▸</button>
         </div>
       </div>
 
@@ -468,7 +477,7 @@ export function ResultScreen({
           </div>
         </div>
         <div style={scrimForLight()}>
-          <button data-next onClick={() => go(4)} style={{ ...btnDark, background: P.creme, border: `1.5px solid ${P.goldWarm}`, color: P.goldText, boxShadow: "0 8px 24px rgba(90,70,40,.18)" }}>{ctaLabel} ▸</button>
+          <button data-next className="sa-cta-keep" onClick={() => go(4)} style={{ ...btnDark, background: P.creme, border: `1.5px solid ${P.goldWarm}`, color: P.goldText, boxShadow: "0 8px 24px rgba(90,70,40,.18)" }}>{ctaLabel} ▸</button>
         </div>
       </div>
 
