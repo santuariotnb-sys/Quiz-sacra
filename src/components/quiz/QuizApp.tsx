@@ -73,6 +73,9 @@ function parsePreview(): {
 // Retoma de onde parou — inclusive no meio das perguntas.
 const SAVED_KEY = "sacra_quiz_state_v3";
 const SAVED_TTL_MS = 48 * 60 * 60 * 1000; // 48h
+// Flag de sessão: marca que o usuário chegou ao resultado NESTA sessão de aba.
+// sessionStorage limpa ao fechar a aba → nova visita recomeça; refresh mantém.
+const SESSION_RESULT_KEY = "sacra_quiz_reached_result";
 
 type SavedState = {
   stage: Stage;
@@ -95,9 +98,13 @@ function loadSavedState(): SavedState | null {
       localStorage.removeItem(SAVED_KEY);
       return null;
     }
-    // Retoma qualquer estágio salvo (exceto hero/loading que são transientes).
-    // O TTL de 48h já protege contra respostas muito velhas.
-    const validStages: Stage[] = ["questions", "contact", "result", "offer"];
+    // Retoma perguntas e contato sempre.
+    // Resultado/oferta só são restaurados se o usuário CHEGOU ao resultado nesta
+    // sessão de aba (sessionStorage existe) — distingue refresh de nova visita.
+    const reachedResult = sessionStorage.getItem(SESSION_RESULT_KEY) === "1";
+    const validStages: Stage[] = reachedResult
+      ? ["questions", "contact", "result", "offer"]
+      : ["questions", "contact"];
     if (
       validStages.includes(s?.stage) &&
       s?.answers &&
@@ -190,6 +197,15 @@ export function QuizApp() {
       })).catch(() => {});
     } catch { /* never block quiz */ }
   };
+
+  // Grava flag de sessão quando chega ao resultado/oferta.
+  // sessionStorage sobrevive ao refresh mas limpa ao fechar a aba —
+  // isso distingue "refresh na página de resultado" de "nova visita pelo link".
+  useEffect(() => {
+    if (stage === "result" || stage === "offer") {
+      sessionStorage.setItem(SESSION_RESULT_KEY, "1");
+    }
+  }, [stage]);
 
   useEffect(() => {
     captureUtms();

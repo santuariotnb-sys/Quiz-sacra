@@ -1,0 +1,14 @@
+/sacra/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/sacra/quiz/
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/sacra/quiz/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/sacra/
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/sacra
+  Cache-Control: no-cache, no-store, must-revalidate
