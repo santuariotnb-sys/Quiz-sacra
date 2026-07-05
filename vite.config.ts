@@ -12,4 +12,21 @@ export default defineConfig({
     tailwindcss(),
     tsconfigPaths(),
   ],
+  build: {
+    // Compatibilidade com aparelhos antigos (iOS 12+/Android antigos). Sem isso o
+    // Vite gera sintaxe moderna (?., ??) que quebra em navegadores velhos = tela
+    // branca + erro de JS (o que a Clarity flagrou). Só adiciona compat, não quebra os novos.
+    target: ["es2019", "safari12", "chrome79", "firefox68", "edge79"],
+    rollupOptions: {
+      output: {
+        // Separa os vendors pesados em arquivos próprios: baixam em PARALELO no 3G
+        // (em vez de um bundle serial) e ficam em cache entre sessões.
+        manualChunks: {
+          "vendor-supabase": ["@supabase/supabase-js"],
+          "vendor-motion": ["framer-motion"],
+          "vendor-react": ["react", "react-dom"],
+        },
+      },
+    },
+  },
 });
