@@ -675,7 +675,7 @@ function HeroScreen({
       {/* 0. Avatar + bubble */}
       <motion.div className="flex w-full items-start justify-center gap-3 sm:gap-4" {...(prefersReduced ? {} : cascade(0))}>
         <GuideAvatar size="corner" />
-        <SpeechBubble text="Olá. Eu sou sua guia nessa jornada." typingDelay={400} />
+        <SpeechBubble text="Você está presa num padrão de alerta interminável por carregar tudo sozinha." typingDelay={400} />
       </motion.div>
 
       {/* 1. Headline 38px */}
@@ -683,7 +683,7 @@ function HeroScreen({
         className="rdp-title-gradient mt-10 font-display text-[38px] leading-[1.05] tracking-tight sm:mt-12 sm:text-[72px]"
         {...(prefersReduced ? {} : cascade(1))}
       >
-        Não é a sua oração que está <em className="italic">falhando</em>.
+        São 4 padrões que enterram uma mulher viva por dentro — <em className="italic">sem ela perceber</em>.
       </motion.h1>
 
       {/* 2. Subheadline 19px */}
@@ -691,9 +691,8 @@ function HeroScreen({
         className="mt-7 font-display text-[19px] italic leading-[1.45] text-[color:var(--amethyst)] sm:mt-7 sm:text-[28px]"
         {...(prefersReduced ? {} : cascade(2))}
       >
-        Descubra o que está{" "}
-        <strong className="font-bold">abafando essa paz</strong>
-        {" "}— e o caminho pro seu padrão.
+        Descubra o seu — e o caminho de volta a ser{" "}
+        <strong className="font-bold">filha</strong>.
       </motion.p>
 
       {/* 3–6. Form */}
@@ -777,7 +776,7 @@ function HeroScreen({
 
         {/* Microtexto — 14px após botão */}
         <motion.p className="mt-3.5 text-[12px] text-[color:var(--amethyst)]/70" {...(prefersReduced ? {} : cascade(6))}>
-          Leva menos de 3 minutos · 7 perguntas
+          Grátis · menos de 2 minutos
         </motion.p>
       </form>
 
