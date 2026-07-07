@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { reducer, initialState, pickFeedback, computeArchetype } from "./state";
+import { reducer, initialState, pickFeedback, computeArchetype, type State } from "./state";
 import { DORES } from "./content";
 
 describe("fluxo", () => {
@@ -15,7 +15,7 @@ describe("fluxo", () => {
     expect(s.name).toBe("Maria");
   });
   it("última pergunta → whatsgate; whats → loading → result", () => {
-    let s = { ...initialState, stage: "questions" as const, qIndex: 6 };
+    let s: State = { ...initialState, stage: "questions", qIndex: 6 };
     s = reducer(s, { type: "ANSWER", key: "desejo", value: "orar" });
     expect(s.stage).toBe("whatsgate");
     s = reducer(s, { type: "SET_WHATS", whats: "19999999999" });
