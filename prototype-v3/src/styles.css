@@ -446,4 +446,4 @@ p strong, li strong { color: var(--ouro); font-weight: 600; }
   .particle, .progress-fill::after, .verse-breathing { animation: none !important; }
 }
 
-.bubble-avatar-spacer { width: 44px; flex-shrink: 0; }
+.bubble-avatar-spacer { width: 40px; flex-shrink: 0; }
