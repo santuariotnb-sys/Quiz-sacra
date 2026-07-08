@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "@tanstack/react-router";
 import { GuideAvatar } from "./Avatar";
 import { SpeechBubble } from "./SpeechBubble";
+import jaquelineAvatar from "@/assets/jaqueline-avatar.webp";
 import { EmotionalProgress } from "./EmotionalProgress";
 import {
   ARCHETYPES,
@@ -665,128 +666,95 @@ function HeroScreen({
     ? { initial: undefined, animate: undefined, transition: undefined }
     : {};
 
+  // Saudação com efeito "digitando" — mesmo esquema das perguntas do quiz (dots → typewriter)
+  const greetingChars = useMemo(
+    () => Array.from("Vi que você chegou até aqui. Deixa eu te mostrar uma coisa 💛"),
+    [],
+  );
+  const [typedCount, setTypedCount] = useState(prefersReduced ? greetingChars.length : 0);
+  const [greetingDots, setGreetingDots] = useState(!prefersReduced);
+  useEffect(() => {
+    if (prefersReduced) return;
+    let i = 0;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => {
+      setGreetingDots(false);
+      interval = setInterval(() => {
+        i += 1;
+        setTypedCount(i);
+        if (i >= greetingChars.length && interval) clearInterval(interval);
+      }, 22);
+    }, 700);
+    return () => {
+      clearTimeout(start);
+      if (interval) clearInterval(interval);
+    };
+  }, [greetingChars, prefersReduced]);
+  const greetingOut = greetingChars.slice(0, typedCount).join("");
+  const greetingTyping = typedCount < greetingChars.length;
+
   return (
     <motion.section
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-end px-6 pb-0 pt-4 text-center sm:justify-center sm:px-8 sm:py-16"
+      className="sqhero"
     >
-      {/* 0. Avatar + bubble */}
-      <motion.div className="flex w-full items-start justify-center gap-3 sm:gap-4" {...(prefersReduced ? {} : cascade(0))}>
-        <GuideAvatar size="corner" />
-        <SpeechBubble text="Você está presa num padrão de alerta interminável por carregar tudo sozinha." typingDelay={400} />
-      </motion.div>
+      {/* Progress bar — continuidade visual com o quiz */}
+      <div className="sqhero-progress"><div className="sqhero-progress-fill" /></div>
 
-      {/* 1. Headline 38px */}
-      <motion.h1
-        className="rdp-title-gradient mt-10 font-display text-[38px] leading-[1.05] tracking-tight sm:mt-12 sm:text-[72px]"
-        {...(prefersReduced ? {} : cascade(1))}
-      >
-        São 4 padrões que enterram uma mulher viva por dentro — <em className="italic">sem ela perceber</em>.
-      </motion.h1>
+      <div className="sqhero-content">
+        {/* Header do chat — identidade + status no topo (WhatsApp) */}
+        <div className="sqhero-header">
+          <img src={jaquelineAvatar} alt="Jaqueline" className="sqhero-hero-avatar" width={96} height={96} decoding="async" />
+          <div className="sqhero-id">
+            <span className="sqhero-name">Jaqueline</span>
+            {greetingTyping ? (
+              <span className="sqhero-typing-status">digitando…</span>
+            ) : (
+              <span className="sqhero-status2"><span className="sqhero-online-dot" aria-hidden /> online</span>
+            )}
+          </div>
+        </div>
 
-      {/* 2. Subheadline 19px */}
-      <motion.p
-        className="mt-7 font-display text-[19px] italic leading-[1.45] text-[color:var(--amethyst)] sm:mt-7 sm:text-[28px]"
-        {...(prefersReduced ? {} : cascade(2))}
-      >
-        Descubra o seu — e o caminho de volta a ser{" "}
-        <strong className="font-bold">filha</strong>.
-      </motion.p>
+        <div className="sqhero-thread">
+          {/* 1. Saudação — digita estilo WhatsApp */}
+          <div className="sqhero-msg sqhero-msg-purple" style={{ animationDelay: "0.3s" }}>
+            {greetingDots ? (
+              <span className="sqhero-dots"><span /><span /><span /></span>
+            ) : (
+              <p>{greetingOut}{greetingTyping && <span className="sqhero-caret" aria-hidden>▌</span>}</p>
+            )}
+          </div>
 
-      {/* 3–6. Form */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim().length >= 2) onStart();
-        }}
-        className="relative mt-12 flex w-full max-w-[340px] flex-col items-center sm:mt-14"
-      >
-        {/* Micro-CTA com coração heartbeat */}
-        <motion.p
-          className="flex items-center gap-1.5 text-[13px] italic text-[color:var(--amethyst)]"
-          {...(prefersReduced ? {} : cascade(3))}
-        >
-          <span>Me diz seu nome — quero te chamar por ele</span>
-          <span
-            className="inline-block text-base"
-            style={prefersReduced ? {} : { animation: "rdp-heartbeat 1.6s ease-in-out infinite", color: "#D85A75" }}
-            aria-hidden
-          >
-            ♥
-          </span>
-        </motion.p>
+          {/* 2. Headline — continua o criativo "Mula de Casa" */}
+          <div className="sqhero-msg sqhero-msg-head" style={{ animationDelay: "2.1s" }}>
+            <h1>Você virou a <em>mula de carga</em> da própria casa — e está quebrando por dentro sem ninguém ver.</h1>
+          </div>
 
-        {/* Seta arco SVG — absolute canto direito */}
-        <motion.div
-          className="pointer-events-none absolute right-0 top-[20px] z-10 sm:right-[-8px] sm:top-[22px]"
-          {...(prefersReduced ? {} : cascade(3))}
-          aria-hidden
-        >
-          <svg viewBox="0 0 28 44" fill="none" className="block h-[44px] w-[28px] sm:hidden">
-            <path d="M4 3 C20 3, 24 18, 18 38" stroke="var(--amethyst)" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" pathLength="1"
-              style={prefersReduced ? {} : { strokeDasharray: 1, strokeDashoffset: 0, animation: "rdp-draw 0.7s ease-out 0.8s both" }} />
-            <path d="M14 34 L18 41 L22 34" stroke="var(--amethyst)" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength="1"
-              style={prefersReduced ? {} : { strokeDasharray: 1, strokeDashoffset: 0, animation: "rdp-draw 0.3s ease-out 1.3s both" }} />
-          </svg>
-          <svg viewBox="0 0 36 52" fill="none" className="hidden h-[52px] w-[36px] sm:block">
-            <path d="M4 3 C26 3, 32 22, 22 45" stroke="var(--amethyst)" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" pathLength="1"
-              style={prefersReduced ? {} : { strokeDasharray: 1, strokeDashoffset: 0, animation: "rdp-draw 0.7s ease-out 0.8s both" }} />
-            <path d="M18 40 L22 48 L26 40" stroke="var(--amethyst)" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength="1"
-              style={prefersReduced ? {} : { strokeDasharray: 1, strokeDashoffset: 0, animation: "rdp-draw 0.3s ease-out 1.3s both" }} />
-          </svg>
-        </motion.div>
+          {/* 3. Subheadline */}
+          <div className="sqhero-msg sqhero-msg-sub" style={{ animationDelay: "2.6s" }}>
+            <p>Descubra em 2 minutos o <strong>seu padrão</strong> que travou sua paz — e por que você merece mais do que só aguentar calada.</p>
+          </div>
+        </div>
 
-        {/* Input — 12px após micro-CTA, mesma largura do botão */}
-        <motion.div className="mt-3 w-full" {...(prefersReduced ? {} : cascade(4))}>
-          <input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => { if (!name) setFocused(false); }}
-            placeholder="Seu primeiro nome"
-            className="w-full rounded-full border border-[color:var(--border)] bg-white/70 px-5 py-3 text-center text-base text-[color:var(--deep-purple)] placeholder:text-[color:var(--amethyst)]/60 focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 transition-shadow duration-200"
-            style={
-              !focused && !name && !prefersReduced
-                ? { animation: "rdp-field-pulse 2.4s ease-in-out infinite" }
-                : {}
-            }
-            autoComplete="given-name"
-            required
-            minLength={2}
-            maxLength={40}
-          />
-        </motion.div>
+        {/* CTA */}
+        <div className="sqhero-cta-wrap" style={{ animationDelay: "3.0s" }}>
+          <button type="button" onClick={onStart} className="sqhero-cta">
+            <span>Quero ver meu padrão</span> <span className="arrow" aria-hidden>→</span>
+          </button>
 
-        {/* Botão — 20px após input */}
-        <motion.button
-          type="submit"
-          disabled={name.trim().length < 2}
-          className="rdp-btn-gradient-hover mt-5 inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 py-3.5 text-[13px] font-medium uppercase tracking-[0.12em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] transition-transform active:scale-[0.98] hover:-translate-y-[1px] disabled:hover:translate-y-0"
-          {...(prefersReduced ? {} : cascadePop(5))}
-        >
-          {name.trim().length >= 2
-            ? <><span>Pronta, {name.trim().split(/\s/)[0]}? Começar</span> <span aria-hidden>→</span></>
-            : <><span>Descobrir meu padrão</span> <span aria-hidden>→</span></>
-          }
-        </motion.button>
+          <div className="sqhero-meta">
+            <span>2 minutos</span><span className="dot" /><span>resultado na hora</span><span className="dot" /><span className="sqhero-free">grátis</span>
+          </div>
 
-        {/* Microtexto — 14px após botão */}
-        <motion.p className="mt-3.5 text-[12px] text-[color:var(--amethyst)]/70" {...(prefersReduced ? {} : cascade(6))}>
-          Grátis · menos de 2 minutos
-        </motion.p>
-      </form>
-
-      {/* Prova social — próximo do microtexto, não no rodapé distante */}
-      <motion.p
-        className="mt-8 max-w-[300px] pb-8 text-center text-[13px] leading-[1.45] text-[color:var(--amethyst)]"
-        {...(prefersReduced ? {} : cascade(7))}
-      >
-        Mais de <span className="font-semibold text-[color:var(--gold-warm)]">70 mulheres</span> fizeram esse diagnóstico nos últimos dias.
-      </motion.p>
+          <div className="sqhero-proof">
+            <div className="sqhero-proof-text">
+              <strong>+100 mulheres</strong> fizeram esse diagnóstico nos últimos dias
+            </div>
+          </div>
+        </div>
+      </div>
     </motion.section>
   );
 }
