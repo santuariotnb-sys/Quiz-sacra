@@ -1,0 +1,438 @@
+/* ============================================================
+   Quiz Sacra v3 — "Noite Sagrada"
+   Paleta: ameixa profundo + ouro + rosé (brief 2026-07-07)
+   Performance: animações apenas transform/opacity (GPU)
+   ============================================================ */
+
+:root {
+  --bg: #241736;
+  --bg-deep: #1A0F28;
+  --surface: #31204A;
+  --surface-2: #3B2859;
+  --ouro: #E3C77B;
+  --ouro-forte: #D4AF37;
+  --rose: #E8A0BF;
+  --creme: #F5EDE2;
+  --suave: #B9A8CC;
+  --grad-cta: linear-gradient(135deg, #E8A0BF, #D4AF37);
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Inter", system-ui, sans-serif;
+  --glow-ouro: 0 0 60px rgba(227, 199, 123, 0.25);
+  --wa-bubble: #005C4B;
+  --wa-bg: #0B141A;
+  --wa-panel: #202C33;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { background: var(--bg-deep); }
+
+body {
+  font-family: var(--sans);
+  color: var(--creme);
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { min-height: 100vh; }
+
+.shell {
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 20px 18px 48px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.22; }
+h1 em, h2 em, h3 em { color: var(--ouro); font-style: italic; }
+strong { color: var(--creme); }
+p strong, li strong { color: var(--ouro); font-weight: 600; }
+
+.eyebrow {
+  font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ouro); font-weight: 600; margin-bottom: 8px;
+}
+
+.text-suave { color: var(--suave); }
+
+/* ---------- Botões ---------- */
+.btn {
+  display: block; width: 100%;
+  font-family: var(--sans); font-size: 0.95rem; font-weight: 500;
+  color: var(--creme); text-align: left;
+  background: var(--surface);
+  border: 1px solid rgba(227, 199, 123, 0.28);
+  border-radius: 14px;
+  padding: 15px 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn.picked {
+  border-color: var(--ouro);
+  background: var(--surface-2);
+  color: var(--ouro);
+}
+
+.btn-primary {
+  background: var(--grad-cta);
+  color: #2B1A20;
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: center;
+  border: none;
+  border-radius: 999px;
+  padding: 16px 20px;
+  box-shadow: 0 0 40px rgba(232, 160, 191, 0.3);
+}
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- Input ---------- */
+.input {
+  width: 100%;
+  font-family: var(--sans); font-size: 1.05rem;
+  color: var(--creme);
+  background: var(--surface);
+  border: 1px solid rgba(227, 199, 123, 0.3);
+  border-radius: 14px;
+  padding: 15px 16px;
+  outline: none;
+}
+.input::placeholder { color: var(--suave); opacity: 0.7; }
+.input:focus { border-color: var(--ouro); }
+
+/* ---------- Progresso com shimmer dourado ---------- */
+.progress {
+  height: 5px; border-radius: 999px;
+  background: rgba(227, 199, 123, 0.14);
+  overflow: hidden;
+  position: relative;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ouro-forte), var(--ouro));
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* ---------- Chat da Jaqueline ---------- */
+.bubble-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+.bubble-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+  border: 1.5px solid var(--ouro);
+  box-shadow: 0 0 18px rgba(227, 199, 123, 0.35);
+}
+.bubble {
+  background: var(--surface);
+  border: 1px solid rgba(227, 199, 123, 0.2);
+  border-radius: 16px 16px 16px 4px;
+  padding: 12px 14px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--creme);
+}
+.bubble-typing {
+  display: inline-flex; gap: 5px; align-items: center;
+  padding: 14px 18px;
+}
+.typing-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ouro);
+}
+
+/* ---------- Placeholder glass premium ---------- */
+.ph {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(227, 199, 123, 0.5);
+  background:
+    linear-gradient(160deg, rgba(227, 199, 123, 0.10), rgba(49, 32, 74, 0.5) 45%, rgba(26, 15, 40, 0.65));
+  backdrop-filter: blur(6px);
+  box-shadow: var(--glow-ouro), inset 0 1px 0 rgba(245, 237, 226, 0.12);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 5px; text-align: center; padding: 10px;
+}
+.ph-n { font-family: var(--serif); font-style: italic; font-size: 1.05rem; color: var(--ouro); }
+.ph-label { font-size: 0.72rem; color: var(--creme); opacity: 0.85; }
+.ph-ratio { font-size: 0.62rem; color: var(--suave); letter-spacing: 0.06em; }
+
+/* ---------- Partículas de luz (hero) ---------- */
+.particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.particle {
+  position: absolute;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--ouro);
+  opacity: 0;
+  filter: blur(0.5px);
+  animation: float-up 9s linear infinite;
+}
+@keyframes float-up {
+  0%   { transform: translateY(0) translateX(0) scale(0.6); opacity: 0; }
+  12%  { opacity: 0.7; }
+  60%  { opacity: 0.4; }
+  100% { transform: translateY(-72vh) translateX(18px) scale(1.1); opacity: 0; }
+}
+
+/* ---------- Versículo / cartões ---------- */
+.verse {
+  border: 1px solid rgba(227, 199, 123, 0.45);
+  border-radius: 16px;
+  background: rgba(227, 199, 123, 0.07);
+  padding: 18px 16px;
+  text-align: center;
+  display: grid; gap: 8px;
+}
+.verse span {
+  font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ouro); font-weight: 600;
+}
+.verse em { font-family: var(--serif); font-size: 1.02rem; color: var(--creme); line-height: 1.5; }
+
+.verse-breathing { animation: breathe-glow 3.2s ease-in-out infinite; }
+@keyframes breathe-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.82; }
+}
+
+.mirror {
+  font-family: var(--serif); font-style: italic;
+  font-size: 1.08rem; line-height: 1.55;
+  color: var(--ouro);
+  border-left: 2px solid var(--ouro);
+  padding: 4px 0 4px 14px;
+  margin: 14px 0;
+}
+
+/* ---------- Stories (resultado) ---------- */
+.stories-bars { display: flex; gap: 5px; margin-bottom: 20px; }
+.stories-bar {
+  flex: 1; height: 3px; border-radius: 999px;
+  background: rgba(245, 237, 226, 0.22);
+  overflow: hidden;
+}
+.stories-bar-fill {
+  height: 100%; width: 100%;
+  background: var(--ouro);
+  transform-origin: left center;
+}
+
+.archetype-name {
+  font-family: var(--serif); font-style: italic; font-weight: 700;
+  font-size: 2.2rem; color: var(--ouro);
+  text-shadow: 0 0 30px rgba(227, 199, 123, 0.55);
+  display: inline-block;
+}
+
+.tap-hint { text-align: center; font-size: 0.75rem; color: var(--suave); margin-top: 22px; }
+
+/* ---------- Dicotomia (comparador) ---------- */
+.dico-frame {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(227, 199, 123, 0.4);
+  box-shadow: var(--glow-ouro);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dico-side { padding: 20px 16px 24px; }
+.dico-side-a {
+  background: linear-gradient(170deg, #2E3140, #1C1E28);
+}
+.dico-side-a .ph { filter: saturate(0.25) brightness(0.8); border-color: rgba(185, 168, 204, 0.3); box-shadow: none; }
+.dico-side-b {
+  background: linear-gradient(170deg, #46325E, #2C1D42);
+}
+.dico-tag { font-family: var(--serif); font-style: italic; font-size: 1.06rem; margin: 10px 0 6px; }
+.dico-side-a .dico-tag { color: var(--suave); }
+.dico-side-b .dico-tag { color: var(--ouro); }
+.dico-list { list-style: none; display: grid; gap: 6px; font-size: 0.8rem; color: var(--suave); }
+.dico-side-b .dico-list { color: var(--creme); }
+.dico-list li::before { content: "· "; color: currentColor; }
+
+.dico-handle {
+  position: absolute; top: 0; bottom: 0; width: 44px;
+  margin-left: -22px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; z-index: 5;
+}
+.dico-handle:active { cursor: grabbing; }
+.dico-handle-line {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px;
+  background: var(--ouro);
+  box-shadow: 0 0 14px rgba(227, 199, 123, 0.8);
+}
+.dico-handle-knob {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--grad-cta);
+  color: #2B1A20;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 700;
+  box-shadow: 0 0 22px rgba(232, 160, 191, 0.6);
+  z-index: 6;
+}
+
+/* ---------- Oferta ---------- */
+.stack { display: grid; gap: 8px; margin: 14px 0; }
+.stack-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  background: var(--surface);
+  border: 1px solid rgba(227, 199, 123, 0.22);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+}
+.stack-row s { color: var(--suave); font-size: 0.85rem; white-space: nowrap; }
+.stack-row.total { border-color: rgba(227, 199, 123, 0.55); background: rgba(227, 199, 123, 0.08); font-weight: 600; }
+
+.price-anchor {
+  position: relative; display: inline-block;
+  font-family: var(--serif); font-size: 1.5rem; color: var(--suave);
+}
+.price-anchor-line {
+  position: absolute; left: -4%; right: -4%; top: 52%; height: 2px;
+  background: var(--rose);
+  transform-origin: left center;
+}
+.price-now {
+  font-family: var(--serif); font-weight: 700; font-size: 3rem;
+  color: var(--ouro);
+  text-shadow: 0 0 34px rgba(227, 199, 123, 0.5);
+  line-height: 1.1;
+}
+
+.guarantee {
+  border: 1px solid rgba(227, 199, 123, 0.45);
+  border-radius: 16px;
+  background: rgba(227, 199, 123, 0.06);
+  padding: 18px 16px;
+  display: grid; gap: 8px;
+}
+.guarantee span { font-size: 0.72rem; letter-spacing: 0.14em; color: var(--ouro); font-weight: 600; }
+.guarantee em { font-size: 0.88rem; line-height: 1.55; color: var(--creme); }
+
+/* ---------- WhatsApp REAL (dark) ---------- */
+.wa-app {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(227, 199, 123, 0.3);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  background: var(--wa-bg);
+  font-family: var(--sans);
+}
+.wa-header {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--wa-panel);
+  padding: 10px 12px;
+}
+.wa-header-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+}
+.wa-header-title { font-size: 0.88rem; font-weight: 600; color: #E9EDEF; }
+.wa-header-sub { font-size: 0.72rem; color: #8696A0; }
+.wa-header-sub .wa-online { color: #00A884; }
+.wa-header-icons { margin-left: auto; color: #8696A0; font-size: 0.9rem; letter-spacing: 8px; }
+
+.wa-chat {
+  padding: 14px 10px 16px;
+  display: grid; gap: 8px;
+  background-color: var(--wa-bg);
+  /* pattern característico do WhatsApp dark (doodle sutil em CSS) */
+  background-image:
+    radial-gradient(rgba(233, 237, 239, 0.035) 1.2px, transparent 1.2px),
+    radial-gradient(rgba(233, 237, 239, 0.025) 1px, transparent 1px);
+  background-size: 26px 26px, 17px 17px;
+  background-position: 0 0, 9px 13px;
+}
+.wa-msg {
+  position: relative;
+  max-width: 88%;
+  background: var(--wa-bubble);
+  color: #E9EDEF;
+  border-radius: 8px;
+  border-top-left-radius: 0;
+  padding: 6px 8px 7px 9px;
+  font-size: 0.82rem;
+  line-height: 1.42;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  margin-left: 8px;
+}
+.wa-msg::before { /* rabinho */
+  content: "";
+  position: absolute; top: 0; left: -8px;
+  border: 8px solid transparent;
+  border-top-color: var(--wa-bubble);
+  border-right-color: var(--wa-bubble);
+  border-width: 6px 8px 6px 0;
+}
+.wa-msg-name { font-size: 0.74rem; font-weight: 600; margin-bottom: 2px; }
+.wa-msg-meta {
+  float: right;
+  margin: 8px 0 0 8px;
+  font-size: 0.64rem;
+  color: #8696A0;
+  white-space: nowrap;
+}
+.wa-msg-meta .wa-ticks { color: #53BDEB; }
+.wa-react {
+  position: absolute;
+  bottom: -12px; left: 8px;
+  background: var(--wa-panel);
+  border: 1px solid rgba(134, 150, 160, 0.3);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 0.66rem;
+  color: #E9EDEF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.wa-msg.has-react { margin-bottom: 12px; }
+
+/* mensagem de áudio */
+.wa-audio { display: flex; align-items: center; gap: 8px; padding: 4px 2px 2px; min-width: 220px; }
+.wa-audio-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+.wa-audio-play {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: transparent; border: none;
+  color: #8696A0; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+}
+.wa-wave { display: flex; align-items: center; gap: 2px; flex: 1; height: 24px; }
+.wa-wave i {
+  display: block; width: 2.5px; border-radius: 999px;
+  background: #8696A0;
+}
+.wa-wave i.played { background: #00A884; }
+.wa-audio-time { font-size: 0.66rem; color: #8696A0; margin-top: 2px; }
+
+/* ---------- Loading (anel dourado) ---------- */
+.ring-wrap { position: relative; width: 150px; height: 150px; margin: 18px auto; }
+.ring-wrap svg { transform: rotate(-90deg); filter: drop-shadow(0 0 18px rgba(227, 199, 123, 0.45)); }
+.ring-pct {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-weight: 600; font-size: 1.7rem; color: var(--ouro);
+}
+
+/* ---------- Redução de movimento ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .particle, .progress-fill::after, .verse-breathing { animation: none !important; }
+}
