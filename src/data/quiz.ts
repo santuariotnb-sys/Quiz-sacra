@@ -352,9 +352,9 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
     subtitle: "O padrão da Que Carrega Todos.",
     tagline: "O método guiado para a Que Carrega Todos.",
     result: {
-      tagline: "O padrão de quem carrega todos.",
+      tagline: "O alarme que abafa a sua fé.",
       happening:
-        "Você segura tudo — e quando perguntam, sorri e diz “tudo bem”. Mas o cansaço está num lugar que dormir não alcança: <strong>ombro, pescoço, mandíbula</strong>. E parar te dá uma culpa estranha.",
+        "Seu corpo e sua mente aprenderam que <strong>“estar em paz” é perigoso</strong> — se você parar, o mundo desaba. E não é você que foge de Deus: é o alarme que enche a sua agenda de barulho, porque ele tem medo do que aparece no silêncio. Você não está fria espiritualmente. Está <strong>operacional demais para conseguir adorar</strong>.",
       mirror:
         "Você se perdeu sendo a pessoa que segura todo mundo. E agora, ninguém segura você — nem você mesma.",
       truthTitle: "Isso não é fraqueza.",
@@ -406,19 +406,19 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
           icone: "🫁",
           titulo: "Corpo",
           texto:
-            "A respiração guiada desativa o seu 'modo de plantão'. É o sinal que o seu corpo cansado precisa para entender que, por agora, você não precisa vigiar nada. O ombro desce, o peito abre e o grito de alerta silenciosamente dá lugar ao repouso.",
+            "Enquanto o peito está travado no alerta, a alma não descansa. A respiração guiada desativa o sinal físico do alarme — é o fim do 'modo de guerra' biológico. O ombro desce, o peito abre e o corpo entende que pode, enfim, sair do posto.",
         },
         {
           icone: "🧠",
           titulo: "Mente",
           texto:
-            "Nós interrompemos o fluxo de preocupações automáticas. Com constância, treinamos sua mente a aprender um novo caminho — a sair do 'Modo Operacional', aquele que só enxerga tarefas, e retomar o controle sobre o que você pensa. É a renovação prática de Romanos 12:2.",
+            "Aqui a gente desinstala o caminho neural de anos que troca o descanso por mais uma tarefa. Com constância, sua mente desaprende o vício da vassoura (o fazer) e reaprende o hábito da coroa (o ser filha). É a renovação prática de Romanos 12:2.",
         },
         {
           icone: "🕊️",
           titulo: "Espírito",
           texto:
-            "Com o ruído do cansaço silenciado, a Palavra de Deus finalmente encontra solo fértil. A barreira da culpa cai e você deixa de ser a 'mula de carga' para voltar a ser a Filha cuidada. Deus não está distante; era o seu cansaço que estava gritando alto demais.",
+            "Com a fiação limpa, a Palavra finalmente penetra. Você para de orar por esforço e passa a descansar na Presença — a fé deixa de ser mais uma tarefa e volta a ser o seu sustento. Deus não está distante; era o alarme que estava gritando alto demais.",
         },
       ],
       mudaTitulo: "Imagine descansar sem culpa.",
