@@ -32,14 +32,19 @@ export function Dicotomia({ name, onAccept }: { name: string; onAccept: () => vo
     animate(x, target, { type: "spring", stiffness: 260, damping: 26 });
   };
 
-  const side = (lado: typeof DICOTOMIA.ladoA, cls: string, img: number) => (
-    <div className={`dico-side ${cls}`}>
-      <Placeholder n={img} ratio="4/5" label={lado.tag} />
+  const col = (lado: typeof DICOTOMIA.ladoA, cls: string) => (
+    <motion.div
+      className={`dico-side ${cls}`}
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ type: "spring", stiffness: 300, damping: 26 }}
+    >
       <p className="dico-tag">{lado.emoji} <em>{lado.tag}</em></p>
       <ul className="dico-list">
         {lado.items.map((it) => <li key={it}>{it}</li>)}
       </ul>
-    </div>
+    </motion.div>
   );
 
   return (
@@ -70,12 +75,16 @@ export function Dicotomia({ name, onAccept }: { name: string; onAccept: () => vo
         transition={{ type: "spring", stiffness: 260, damping: 24 }}
       >
         {/* Base: lado B — Filha Cuidada (dourado, quente) */}
-        {side(DICOTOMIA.ladoB, "dico-side-b", 6)}
+        <div className="dico-img dico-img-b">
+          <Placeholder n={6} ratio="4/5" label={DICOTOMIA.ladoB.tag} />
+        </div>
 
         {/* Overlay recortado: lado A — Mula de Carga (dessaturado, frio) */}
         <motion.div style={{ position: "absolute", inset: 0, overflow: "hidden", x: outerX }} aria-hidden={w === 0}>
           <motion.div style={{ x: innerX, width: "100%", height: "100%" }}>
-            {side(DICOTOMIA.ladoA, "dico-side-a", 5)}
+            <div className="dico-img dico-img-a">
+              <Placeholder n={5} ratio="4/5" label={DICOTOMIA.ladoA.tag} />
+            </div>
           </motion.div>
         </motion.div>
 
@@ -96,6 +105,12 @@ export function Dicotomia({ name, onAccept }: { name: string; onAccept: () => vo
           </motion.div>
         )}
       </motion.div>
+
+      {/* Os dois mundos, lado a lado (legível — o slider fica só nas imagens) */}
+      <div className="dico-cols">
+        {col(DICOTOMIA.ladoA, "dico-side-a")}
+        {col(DICOTOMIA.ladoB, "dico-side-b")}
+      </div>
 
       <motion.p
         style={{ textAlign: "center", margin: "22px 0 14px", fontFamily: "var(--serif)", fontSize: "1.15rem", lineHeight: 1.5 }}
