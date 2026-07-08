@@ -6,3 +6,6 @@ dist
 supabase/.temp/
 _deploy/
 .vercel
+.DS_Store
+dist-deploy/
+backup-resultado-oferta-*/

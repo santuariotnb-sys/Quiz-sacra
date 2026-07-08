@@ -145,7 +145,8 @@ O app **já tem** Pixel Meta + **CAPI** (Purchase no webhook) **deduplicados por
 | **Diretório local** | `/Users/guilhermehenrique/Quiz-sacra/` |
 | **Stack** | React 19 + TanStack Router + Tailwind 4 + Framer Motion + Supabase |
 | **URL produção** | `rotinadepaz.com.br/sacra` (redirect automático para `/sacra/quiz`) |
-| **Hosting** | Cloudflare Pages — embeddado no projeto `rotina-de-paz` como subdiretório `/sacra/` |
+| **Hosting** | Cloudflare Pages — projeto `rotina-de-paz`, subdiretório `/sacra/` |
+| **Deploy** | Via wrangler CLI — ver seção "Deploy Cloudflare Pages" abaixo |
 | **Checkout** | Kirvano (`VITE_KIRVANO_URL`) |
 | **Supabase** | `cemjibbauvvyfaxilrvm` |
 
@@ -158,6 +159,27 @@ O app **já tem** Pixel Meta + **CAPI** (Purchase no webhook) **deduplicados por
 | `/sacra/quiz-sacra` | `src/routes/quiz-sacra.tsx` | Página auxiliar |
 | `/sacra/obrigado` | `src/routes/obrigado.tsx` | Thank you + Upsell (R$67 Chave da Gratidão) — redirect pós-compra Kirvano |
 | `/sacra/obrigado?offer=downsell` | `src/routes/obrigado.tsx` | Downsell (R$37) — quando recusa upsell |
+
+### Deploy Cloudflare Pages
+
+⚠️ **Splat rules (`/sacra/*`) com rewrite 200 NÃO funcionam no CF Pages.** Copiar `index.html` em cada rota SPA.
+
+```bash
+npm run build
+mkdir -p deploy/sacra/{quiz,obrigado,assets}
+cp dist/index.html deploy/sacra/
+cp dist/index.html deploy/sacra/quiz/index.html
+cp dist/index.html deploy/sacra/obrigado/index.html
+cp dist/assets/* deploy/sacra/assets/
+cp public/_redirects deploy/
+cp public/_headers deploy/
+npx wrangler pages deploy deploy --project-name=rotina-de-paz --branch=main --commit-dirty=true
+```
+
+- **`_redirects`**: só 302s (root → quiz). Rewrites 200 retornam 404.
+- **`_headers`**: `no-cache, no-store` para HTML. Assets hashados são imutáveis.
+- **Cache**: "Limpar tudo" no dashboard NÃO limpa o Pages edge. A única forma de servir código novo é ter o `index.html` correto em cada path.
+- **Navegação ResultScreen**: `sceneBase(idx)` controla visibility via React state. Cada botão tem guard `curRef.current === N`.
 
 ### Arquivos-chave
 
