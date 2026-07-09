@@ -5,6 +5,7 @@ import { GuideAvatar } from "./Avatar";
 import { SpeechBubble } from "./SpeechBubble";
 import jaquelineAvatar from "@/assets/jaqueline-avatar.webp";
 import { EmotionalProgress } from "./EmotionalProgress";
+import { WhatsProofCard } from "./WhatsProof";
 import {
   ARCHETYPES,
   DESIRE_CTA,
@@ -334,24 +335,29 @@ export function QuizApp() {
   // G4-v2: Loading com ritmo lento (1.1s/item) + card de micro-recompensa (2s) entre itens 2-3
   const [loadingMsg, setLoadingMsg] = useState(0);
   const [loadingStatCard, setLoadingStatCard] = useState(false);
+  const [loadingProof, setLoadingProof] = useState(0);
   useEffect(() => {
     if (stage !== "loading") return;
     setLoadingMsg(0);
     setLoadingStatCard(false);
+    setLoadingProof(0);
     const step = 1100;
     const timers: number[] = [];
     // Items 0,1 at step intervals
     timers.push(window.setTimeout(() => setLoadingMsg(1), step));
-    // After item 1: show stat card — fica visível até o fim do loading
+    // After item 1: show stat card
     const statStart = step * 2;
     timers.push(window.setTimeout(() => setLoadingStatCard(true), statStart));
     const statEnd = statStart + 3500;
     timers.push(window.setTimeout(() => setLoadingMsg(2), statEnd));
+    // Stat card dá lugar à prova social (prints WhatsApp de quem entendeu o padrão)
+    timers.push(window.setTimeout(() => { setLoadingStatCard(false); setLoadingProof(1); }, statEnd));
+    timers.push(window.setTimeout(() => setLoadingProof(2), statEnd + 1300));
     // Items 3,4 after the stat card
     timers.push(window.setTimeout(() => setLoadingMsg(3), statEnd + step));
     timers.push(window.setTimeout(() => setLoadingMsg(4), statEnd + step * 2));
-    // Transition to contact (card fica visível até aqui)
-    timers.push(window.setTimeout(() => setStage("contact"), statEnd + step * 2 + 1000));
+    // Transition to contact (prova fica visível até aqui)
+    timers.push(window.setTimeout(() => setStage("contact"), statEnd + step * 2 + 2200));
     // Persiste lead no Supabase (best effort). Lead event disparado na captura de contato.
     // A promise é guardada em leadPromiseRef para o submitContact fazer await.
     leadPromiseRef.current = persistLead(answers).catch(() => null);
@@ -586,7 +592,7 @@ export function QuizApp() {
         )}
 
         {stage === "loading" && (
-          <LoadingScreen key="loading" step={loadingMsg} answers={answers} name={name} statCard={loadingStatCard} />
+          <LoadingScreen key="loading" step={loadingMsg} answers={answers} name={name} statCard={loadingStatCard} proof={loadingProof} />
         )}
 
         {stage === "contact" && (
@@ -949,7 +955,7 @@ function QuestionScreen({
 
 /* ============================== LOADING ============================== */
 
-function LoadingScreen({ step, answers, name, statCard }: { step: number; answers: Record<string, string>; name: string; statCard: boolean }) {
+function LoadingScreen({ step, answers, name, statCard, proof }: { step: number; answers: Record<string, string>; name: string; statCard: boolean; proof: number }) {
   const particles = Array.from({ length: 28 });
 
   // G4-v2: pills reais com destaque dourado
@@ -1054,10 +1060,11 @@ function LoadingScreen({ step, answers, name, statCard }: { step: number; answer
           })}
         </ul>
 
-        {/* G4-v2: Micro-recompensa — card de estatística real */}
-        <AnimatePresence>
-          {statCard && statText && (
+        {/* G4-v2: Micro-recompensa — card de estatística real, depois prova social WhatsApp */}
+        <AnimatePresence mode="wait">
+          {statCard && statText && proof === 0 && (
             <motion.div
+              key="stat"
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8 }}
@@ -1067,6 +1074,21 @@ function LoadingScreen({ step, answers, name, statCard }: { step: number; answer
               <p className="font-display text-[13px] italic leading-relaxed text-[color:rgba(232,201,160,0.9)]">
                 {statText}
               </p>
+            </motion.div>
+          )}
+          {proof > 0 && (
+            <motion.div
+              key="proof"
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.5, ease: [0.2, 0.7, 0.2, 1] }}
+              className="mx-4 mt-5 flex w-full max-w-sm flex-col items-center gap-2"
+            >
+              <p className="font-display text-[12px] italic text-[color:rgba(232,201,160,0.85)]">
+                Mulheres que descobriram o padrão delas:
+              </p>
+              <WhatsProofCard visible={proof} />
             </motion.div>
           )}
         </AnimatePresence>
