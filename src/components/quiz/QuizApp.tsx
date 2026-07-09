@@ -27,6 +27,7 @@ import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
 import { captureMetaClickData, getMetaClickData, getOrCreateExternalId, readFbCookies, saveTrackingSession, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
 import { fetchProductPrices, fetchInstallmentFreeCount, formatBRL } from "@/lib/prices";
+import { QUIZ_ID, PIXEL_ID } from "@/lib/quiz-config";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import { Check } from "lucide-react";
 
@@ -203,6 +204,7 @@ export function QuizApp() {
         p_stage: stage,
         p_question_key: questionKey ?? null,
         p_version: QUIZ_VERSION,
+        p_quiz_id: QUIZ_ID,
       })).catch(() => {});
     } catch { /* never block quiz */ }
   };
@@ -419,6 +421,7 @@ export function QuizApp() {
       p_situation: ans["situacao"] ?? null,
       p_risk_flag: answersHaveRisk(ans),
       p_external_id: getOrCreateExternalId(),
+      p_quiz_id: QUIZ_ID,
       ...Object.fromEntries(
         Object.entries(utms).map(([k, v]) => ["p_" + k, v]),
       ),
@@ -451,7 +454,7 @@ export function QuizApp() {
         answer_text: q.options.find((o) => o.value === ans[q.key])?.label ?? "",
         time_to_answer: Math.round(totalTime / QUESTIONS.length),
       }));
-      const { error: rpcErr } = await sb.rpc("persist_quiz_responses", { p_rows: rows });
+      const { error: rpcErr } = await sb.rpc("persist_quiz_responses", { p_rows: rows, p_quiz_id: QUIZ_ID });
       if (rpcErr) console.error("[persist_quiz_responses] falhou:", rpcErr.message, rpcErr.code);
     } catch (e) {
       console.error("[persist_quiz_responses] erro:", e);
@@ -537,7 +540,7 @@ export function QuizApp() {
           const ph = hasWhatsapp ? `55${digits}` : undefined;
           const fbq = (window as any).fbq;
           if (fbq) {
-            const PIXEL = "863734499693171";
+            const PIXEL = PIXEL_ID;
             fbq("init", PIXEL, {
               ...(hasEmail ? { em: email.toLowerCase().trim() } : {}),
               ...(ph ? { ph } : {}),

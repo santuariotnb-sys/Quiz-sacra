@@ -1,17 +1,22 @@
 import { getSupabase } from "./supabase";
+import { QUIZ_ID, EXTERNAL_ID_PREFIX } from "./quiz-config";
 
-const EXTERNAL_ID_KEY = "rdp_external_id";
+// Chave namespaceada por quiz: mesmo origin serve vários quizzes (paths distintos),
+// logo o localStorage colidiria. 'sacra' mantém a chave histórica p/ não regenerar
+// o external_id de quem já está no funil.
+const EXTERNAL_ID_KEY =
+  QUIZ_ID === "sacra" ? "rdp_external_id" : `rdp_external_id_${QUIZ_ID}`;
 
 /**
  * Gera ou recupera external_id único da sessão.
- * Formato: "qs_" + UUID. Persistido em localStorage para reuso na sessão.
+ * Formato: EXTERNAL_ID_PREFIX + UUID (default "qs_"). Persistido em localStorage.
  */
 export function getOrCreateExternalId(): string {
   try {
     const stored = localStorage.getItem(EXTERNAL_ID_KEY);
     if (stored) return stored;
   } catch {}
-  const id = `qs_${crypto.randomUUID()}`;
+  const id = `${EXTERNAL_ID_PREFIX}${crypto.randomUUID()}`;
   try {
     localStorage.setItem(EXTERNAL_ID_KEY, id);
   } catch {}
