@@ -42,7 +42,7 @@ const CHECKOUT_SACRA_URL =
   (import.meta.env.VITE_CHECKOUT_SACRA_URL as string | undefined) ||
   "https://rotinadepaz.com.br/checkout";
 
-type Stage = "hero" | "questions" | "loading" | "contact" | "result" | "offer";
+type Stage = "hero" | "acolhimento" | "questions" | "loading" | "contact" | "result" | "offer";
 
 // Detecta se alguma resposta marcou risco (P2: "pensamentos sombrios" / "estou em crise").
 function answersHaveRisk(ans: Record<string, string>): boolean {
@@ -146,6 +146,7 @@ export function QuizApp() {
     !!saved && saved.stage === "questions",
   );
   const [name, setName] = useState(saved?.name ?? "");
+  const [painPoint, setPainPoint] = useState<string | null>(null);
   const [qIndex, setQIndex] = useState(saved?.qIndex ?? 0);
   const qIndexRef = useRef(qIndex);
   qIndexRef.current = qIndex;
@@ -570,9 +571,20 @@ export function QuizApp() {
         {stage === "hero" && (
           <HeroScreen
             key="hero"
+            onPickPain={(p) => {
+              setPainPoint(p);
+              setStage("acolhimento");
+            }}
+          />
+        )}
+
+        {stage === "acolhimento" && (
+          <AcolhimentoScreen
+            key="acolhimento"
+            painPoint={painPoint}
             name={name}
             setName={setName}
-            onStart={startQuiz}
+            onContinue={startQuiz}
           />
         )}
 
@@ -640,127 +652,255 @@ export function QuizApp() {
 
 /* ============================== HERO ============================== */
 
-// C4-v3: cascata animada, campo pulsando, chevron, menos texto.
-// Stagger cascade: cada bloco entra com fade+translateY, 0.15s stagger.
-const EASE_SOFT: [number, number, number, number] = [0.2, 0.7, 0.2, 1];
-const cascade = (i: number) => ({
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5, delay: 0.1 + i * 0.15, ease: EASE_SOFT },
-});
-const cascadePop = (i: number) => ({
-  initial: { opacity: 0, y: 12, scale: 0.96 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  transition: { duration: 0.5, delay: 0.1 + i * 0.15, ease: EASE_SOFT },
-});
-
-function HeroScreen({
-  name,
-  setName,
-  onStart,
-}: {
-  name: string;
-  setName: (s: string) => void;
-  onStart: () => void;
-}) {
-  const [focused, setFocused] = useState(false);
-  const prefersReduced = useMemo(
-    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    [],
-  );
-  const anim = prefersReduced
-    ? { initial: undefined, animate: undefined, transition: undefined }
-    : {};
-
-  // Saudação com efeito "digitando" — mesmo esquema das perguntas do quiz (dots → typewriter)
-  const greetingChars = useMemo(
-    () => Array.from("Vi que você chegou até aqui. Deixa eu te mostrar uma coisa 💛"),
-    [],
-  );
-  const [typedCount, setTypedCount] = useState(prefersReduced ? greetingChars.length : 0);
-  const [greetingDots, setGreetingDots] = useState(!prefersReduced);
-  useEffect(() => {
-    if (prefersReduced) return;
-    let i = 0;
-    let interval: ReturnType<typeof setInterval> | undefined;
-    const start = setTimeout(() => {
-      setGreetingDots(false);
-      interval = setInterval(() => {
-        i += 1;
-        setTypedCount(i);
-        if (i >= greetingChars.length && interval) clearInterval(interval);
-      }, 22);
-    }, 700);
-    return () => {
-      clearTimeout(start);
-      if (interval) clearInterval(interval);
-    };
-  }, [greetingChars, prefersReduced]);
-  const greetingOut = greetingChars.slice(0, typedCount).join("");
-  const greetingTyping = typedCount < greetingChars.length;
-
+function HeroScreen({ onPickPain }: { onPickPain: (p: string) => void }) {
   return (
     <motion.section
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="sqhero"
+      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-5 py-10 text-center sm:px-6 sm:py-16"
     >
-      {/* Progress bar — continuidade visual com o quiz */}
-      <div className="sqhero-progress"><div className="sqhero-progress-fill" /></div>
-
-      <div className="sqhero-content">
-        {/* Header do chat — identidade + status no topo (WhatsApp) */}
-        <div className="sqhero-header">
-          <img src={jaquelineAvatar} alt="Jaqueline" className="sqhero-hero-avatar" width={96} height={96} decoding="async" />
-          <div className="sqhero-id">
-            <span className="sqhero-name">Jaqueline</span>
-            {greetingTyping ? (
-              <span className="sqhero-typing-status">digitando…</span>
-            ) : (
-              <span className="sqhero-status2"><span className="sqhero-online-dot" aria-hidden /> online</span>
-            )}
-          </div>
-        </div>
-
-        <div className="sqhero-thread">
-          {/* 1. Saudação — digita estilo WhatsApp */}
-          <div className="sqhero-msg sqhero-msg-purple" style={{ animationDelay: "0.3s" }}>
-            {greetingDots ? (
-              <span className="sqhero-dots"><span /><span /><span /></span>
-            ) : (
-              <p>{greetingOut}{greetingTyping && <span className="sqhero-caret" aria-hidden>▌</span>}</p>
-            )}
-          </div>
-
-          {/* 2. Headline — continua o criativo "Mula de Casa" */}
-          <div className="sqhero-msg sqhero-msg-head" style={{ animationDelay: "2.1s" }}>
-            <h1>Você virou a <em>mula de carga</em> da própria casa — e está quebrando por dentro sem ninguém ver.</h1>
-          </div>
-
-          {/* 3. Subheadline */}
-          <div className="sqhero-msg sqhero-msg-sub" style={{ animationDelay: "2.6s" }}>
-            <p>Descubra em 2 minutos o <strong>seu padrão</strong> que travou sua paz — e por que você merece mais do que só aguentar calada.</p>
-          </div>
-        </div>
-
-        {/* CTA */}
-        <div className="sqhero-cta-wrap" style={{ animationDelay: "3.0s" }}>
-          <button type="button" onClick={onStart} className="sqhero-cta">
-            <span>Quero ver meu padrão</span> <span className="arrow" aria-hidden>→</span>
-          </button>
-
-          <div className="sqhero-meta">
-            <span>2 minutos</span><span className="dot" /><span>resultado na hora</span><span className="dot" /><span className="sqhero-free">grátis</span>
-          </div>
-
-          <div className="sqhero-proof">
-            <div className="sqhero-proof-text">
-              <strong>+100 mulheres</strong> fizeram esse diagnóstico nos últimos dias
-            </div>
-          </div>
-        </div>
+      <div className="flex w-full items-start justify-center gap-3 sm:gap-4">
+        <GuideAvatar size="corner" />
+        <SpeechBubble
+          text="Deus não te chamou pra viver de plantão."
+          typingDelay={400}
+        />
       </div>
+
+      <h1 className="rdp-title-gradient mt-7 text-balance font-display text-[30px] leading-[1.1] tracking-tight sm:mt-8 sm:text-[48px] sm:leading-[1.08]">
+        Existem quatro padrões diferentes de <em className="italic">esgotamento</em> entre mulheres cristãs.
+        <span className="inline-block align-middle ml-2" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="inline-block h-[0.6em] w-[0.6em] stroke-[color:var(--gold-vivid)] drop-shadow-[0_1px_5px_rgba(217,197,165,0.45)]">
+            <path d="M12 5V19M5 12H19" strokeWidth="2.25" strokeLinecap="round" />
+          </svg>
+        </span>
+      </h1>
+
+      <p className="mt-5 max-w-xl text-balance text-base leading-relaxed text-[color:var(--deep-purple)] sm:mt-6 sm:text-xl">
+        E é por isso que a <span className="rounded px-1 bg-[color:var(--gold-vivid)]/35 font-semibold text-[color:var(--deep-purple)]">sua dor não é resolvida</span>, mesmo quando a sua fé é verdadeira.
+      </p>
+
+      <p className="mt-8 font-display text-base italic text-[color:var(--amethyst)] sm:mt-10 sm:text-lg">
+        Toque no que mais dói hoje:
+      </p>
+
+      <div className="mt-4 flex w-full max-w-md flex-col gap-3 sm:mt-5">
+        {[
+          "O cansaço que me esmaga",
+          "Minha oração não passa do teto",
+          "Sinto culpa por querer sumir",
+        ].map((label, i) => (
+          <motion.button
+            key={label}
+            type="button"
+            onClick={() => onPickPain(label)}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.12, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            className="group relative overflow-hidden rounded-2xl border border-[color:var(--lavender)] bg-gradient-to-br from-white via-[color:var(--milk-warm)] to-[color:var(--blush)]/30 px-6 py-4.5 text-left text-base font-medium text-[color:var(--deep-purple)] shadow-[0_8px_24px_-12px_rgba(117,97,127,0.25)] transition-shadow hover:border-[color:var(--amethyst)] hover:shadow-[0_14px_34px_-14px_rgba(117,97,127,0.45)] sm:text-lg"
+          >
+            <span className="relative z-10 flex items-center justify-between gap-3">
+              {label}
+              <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--deep-purple)]/10 text-[color:var(--deep-purple)] transition-colors group-hover:bg-[color:var(--deep-purple)] group-hover:text-white">
+                →
+              </span>
+            </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-0 transition-opacity duration-700 group-hover:opacity-100"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-2xl border-2 border-transparent opacity-0 transition-opacity duration-300 group-hover:border-[color:var(--gold-warm)]/40 group-hover:opacity-100"
+            />
+          </motion.button>
+        ))}
+      </div>
+
+      <p className="mt-8 max-w-md text-base leading-relaxed text-[color:var(--deep-purple)]/90">
+        Descubra o seu padrão de <em className="italic">esmagamento</em> e como ter alívio desse peso todo.
+      </p>
+
+      <p className="mt-6 text-sm text-[color:var(--amethyst)]/80">
+        Sem julgamento · 2 minutos · Grátis
+      </p>
+    </motion.section>
+  );
+}
+
+/* ============================== ACOLHIMENTO ============================== */
+
+const PAIN_RESPONSES: Record<string, { body: string; closing: string }> = {
+  "O cansaço que me esmaga": {
+    body: "Não é preguiça, nem falta de fé. É um padrão de esgotamento que se instalou devagar, enquanto você cuidava de todo mundo — e continua drenando você porque ninguém te ensinou a enxergar de onde ele vem.",
+    closing: "Vamos dar nome ao que te esmaga. Assim você pode, enfim, descansar sem culpa.",
+  },
+  "Minha oração não passa do teto": {
+    body: "Quando a mente não desliga e a alma parece muda, quase nunca é Deus distante. É um padrão interno, cansado e barulhento, que abafa a voz d'Ele. E ele pode, sim, ser interrompido.",
+    closing: "Vamos entender juntas o que está entre você e a paz que você tanto espera.",
+  },
+  "Sinto culpa por querer sumir": {
+    body: "É o seu corpo implorando pausa numa vida que não te deixa parar. A culpa que vem junto não é convicção do Espírito — é o eco de tudo que te ensinaram sobre se anular pra ser amada.",
+    closing: "Vamos identificar o padrão que te prende no plantão e o caminho pra sair dele com paz.",
+  },
+};
+
+function AcolhimentoScreen({
+  painPoint,
+  name,
+  setName,
+  onContinue,
+}: {
+  painPoint: string | null;
+  name: string;
+  setName: (s: string) => void;
+  onContinue: () => void;
+}) {
+  const response =
+    (painPoint && PAIN_RESPONSES[painPoint]) || {
+      body: "O que você sente tem nome — e tem saída.",
+      closing: "Vamos descobrir o seu padrão juntas.",
+    };
+
+  const trimmed = name.trim();
+  const touched = name.length > 0;
+  const tooShort = touched && trimmed.length < 2;
+  const tooLong = trimmed.length > 40;
+  const invalidChars = touched && !/^[\p{L}\p{M}\s'’.-]*$/u.test(trimmed);
+  const errorMsg = tooShort
+    ? "Escreva pelo menos 2 letras."
+    : tooLong
+      ? "Nome muito longo (máx. 40 caracteres)."
+      : invalidChars
+        ? "Use apenas letras."
+        : null;
+  const canContinue = trimmed.length >= 2 && !tooLong && !invalidChars;
+  const showValid = canContinue;
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-5 py-12 text-center sm:px-6 sm:py-16"
+    >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`copy-${painPoint ?? "default"}`}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full"
+        >
+          <p className="mx-auto max-w-xl text-balance text-base leading-relaxed text-[color:var(--deep-purple)]/90 sm:text-lg">
+            {response.body}
+          </p>
+          <p className="mx-auto mt-6 max-w-xl text-balance font-display text-[22px] italic leading-snug text-[color:var(--deep-purple)] sm:text-[30px]">
+            {response.closing}
+          </p>
+        </motion.div>
+      </AnimatePresence>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.5 }}
+        className="mt-10 flex w-full items-start justify-center gap-3 sm:gap-4"
+      >
+        <GuideAvatar size="corner" />
+        <SpeechBubble
+          text="Antes de darmos nome ao seu padrão, como posso te chamar? Quero falar diretamente com você."
+          resetKey="acolh-name"
+          typingDelay={200}
+        />
+      </motion.div>
+
+      <motion.form
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1, duration: 0.5 }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canContinue) onContinue();
+        }}
+        className="mt-6 flex w-full max-w-sm flex-col items-center gap-4"
+      >
+        <label htmlFor="acolh-name-input" className="sr-only">
+          Seu primeiro nome
+        </label>
+        <div className="relative w-full">
+          <input
+            id="acolh-name-input"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Seu primeiro nome"
+            autoFocus
+            maxLength={60}
+            aria-invalid={!!errorMsg}
+            aria-describedby="name-feedback"
+            className={`w-full rounded-full border-2 bg-white/80 px-6 py-4 text-center font-body text-base text-[color:var(--deep-purple)] outline-none transition-all placeholder:text-[color:var(--amethyst)]/50 ${
+              errorMsg
+                ? "border-[color:var(--rose-dust)] shadow-[0_0_0_4px_rgba(212,165,181,0.18)]"
+                : showValid
+                  ? "border-[color:var(--gold-warm)] shadow-[0_0_0_4px_rgba(217,197,165,0.28)]"
+                  : "border-[color:var(--border)] focus:border-[color:var(--lavender)] focus:shadow-[0_0_0_4px_rgba(196,168,188,0.2)]"
+            }`}
+          />
+          <AnimatePresence>
+            {showValid && (
+              <motion.span
+                key="check"
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                transition={{ duration: 0.25 }}
+                aria-hidden
+                className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[color:var(--gold-warm)]"
+              >
+                ✓
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+        <div id="name-feedback" className="min-h-[1.25rem] text-xs" aria-live="polite">
+          <AnimatePresence mode="wait">
+            {errorMsg ? (
+              <motion.p
+                key="err"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-[color:var(--rose-dust)]"
+              >
+                {errorMsg}
+              </motion.p>
+            ) : showValid ? (
+              <motion.p
+                key="ok"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-[color:var(--amethyst)]"
+              >
+                Prazer, {trimmed.split(" ")[0]}.
+              </motion.p>
+            ) : null}
+          </AnimatePresence>
+        </div>
+        <button
+          type="submit"
+          disabled={!canContinue}
+          className="w-full rounded-full bg-[color:var(--deep-purple)] px-8 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--milk)] shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] transition-all hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-[color:var(--gold-warm)] hover:to-[color:var(--amethyst)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:bg-[color:var(--deep-purple)]"
+        >
+          Descobrir meu padrão →
+        </button>
+      </motion.form>
     </motion.section>
   );
 }

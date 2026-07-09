@@ -22,6 +22,8 @@
   --color-gold-warm: var(--gold-warm);
   --color-rose-dust: var(--rose-dust);
   --color-rose-soft: var(--rose-soft);
+  --color-gold-vivid: var(--gold-vivid);
+  --color-blush: var(--blush);
   --font-display: "Cormorant Garamond", Georgia, serif;
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
 }
@@ -39,6 +41,8 @@
   --gold-warm: #C9A876;
   --rose-dust: #D4A5B5;
   --rose-soft: #E8C9D1;
+  --gold-vivid: #E2B94F;
+  --blush: #EFD9DD;
 
   --background: var(--milk);
   --foreground: var(--deep-purple);
