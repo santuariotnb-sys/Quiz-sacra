@@ -25,7 +25,7 @@ import { Component, type ErrorInfo } from "react";
 import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
-import { captureMetaClickData, getOrCreateExternalId, saveTrackingSession, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
+import { captureMetaClickData, getOrCreateExternalId, readFbCookies, saveTrackingSession, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
 import { fetchProductPrices, fetchInstallmentFreeCount, formatBRL } from "@/lib/prices";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import { Check } from "lucide-react";
@@ -506,10 +506,10 @@ export function QuizApp() {
       try {
         if (typeof window !== "undefined" &&
             ["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) {
+          const eid = getOrCreateExternalId();
+          const ph = hasWhatsapp ? `55${digits}` : undefined;
           const fbq = (window as any).fbq;
           if (fbq) {
-            const eid = getOrCreateExternalId();
-            const ph = hasWhatsapp ? `55${digits}` : undefined;
             const PIXEL = "863734499693171";
             fbq("init", PIXEL, {
               ...(hasEmail ? { em: email.toLowerCase().trim() } : {}),
@@ -522,6 +522,28 @@ export function QuizApp() {
               currency: "BRL",
             }, { eventID: `lead_${eid}` });
           }
+          // CAPI Lead (server-side) — mesmo eventID do pixel → dedup no Meta.
+          // Cobre os ~75% de leads que o pixel client-side perde (adblock/iOS).
+          try {
+            const { fbp, fbc } = readFbCookies();
+            void getSupabase()?.functions.invoke("track-event", {
+              body: {
+                event_name: "Lead",
+                event_id: `lead_${eid}`,
+                event_source_url: window.location.href,
+                visitor_id: eid,
+                fbp,
+                fbc,
+                user_agent: navigator.userAgent,
+                properties: {
+                  content_name: "Rotina de Paz",
+                  ...(ph ? { customer_phone: ph } : {}),
+                  ...(hasEmail ? { customer_email: email.toLowerCase().trim() } : {}),
+                  ...(name.trim() ? { customer_first_name: name.trim().split(" ")[0] } : {}),
+                },
+              },
+            }).catch(() => {});
+          } catch { /* nunca bloqueia o fluxo */ }
         }
       } catch {}
     } finally {
@@ -572,6 +594,8 @@ export function QuizApp() {
           <HeroScreen
             key="hero"
             onPickPain={(p) => {
+              const slug = p.includes("cansaço") ? "cansaco" : p.includes("oração") ? "oracao" : "culpa";
+              if (!preview) trackStep("hero_intent", slug);
               setPainPoint(p);
               setStage("acolhimento");
             }}
