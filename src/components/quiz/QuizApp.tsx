@@ -25,7 +25,7 @@ import { Component, type ErrorInfo } from "react";
 import { playDing } from "@/lib/sound";
 import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
 import { getSupabase } from "@/lib/supabase";
-import { captureMetaClickData, getOrCreateExternalId, readFbCookies, saveTrackingSession, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
+import { captureMetaClickData, getMetaClickData, getOrCreateExternalId, readFbCookies, saveTrackingSession, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
 import { fetchProductPrices, fetchInstallmentFreeCount, formatBRL } from "@/lib/prices";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import { Check } from "lucide-react";
@@ -103,17 +103,21 @@ function loadSavedState(): SavedState | null {
     // Retoma perguntas e contato sempre.
     // Resultado/oferta só são restaurados se o usuário CHEGOU ao resultado nesta
     // sessão de aba (sessionStorage existe) — distingue refresh de nova visita.
+    // Nova visita com quiz já respondido → NÃO descarta tudo: rebaixa para
+    // "contact" preservando answers/name/whatsapp (evita refazer as 7 perguntas
+    // e re-disparar Lead duplicado).
     const reachedResult = sessionStorage.getItem(SESSION_RESULT_KEY) === "1";
-    const validStages: Stage[] = reachedResult
-      ? ["questions", "contact", "result", "offer"]
-      : ["questions", "contact"];
+    const restorable: Stage[] = ["questions", "contact", "result", "offer"];
     if (
-      validStages.includes(s?.stage) &&
+      restorable.includes(s?.stage) &&
       s?.answers &&
       typeof s.answers === "object"
     ) {
+      const savedStage = s.stage as Stage;
+      const isResultLike = savedStage === "result" || savedStage === "offer";
+      const stage: Stage = isResultLike && !reachedResult ? "contact" : savedStage;
       return {
-        stage: s.stage,
+        stage,
         qIndex: typeof s.qIndex === "number" && s.qIndex >= 0 && s.qIndex < QUESTIONS.length ? s.qIndex : undefined,
         answers: s.answers,
         name: typeof s.name === "string" ? s.name : "",
@@ -167,6 +171,8 @@ export function QuizApp() {
   const firedStagesRef = useRef<Set<string>>(new Set());
   // Promise da criação do lead — submitContact faz await antes de salvar email
   const leadPromiseRef = useRef<Promise<string | null>>(Promise.resolve(null));
+  // Garante que persistLead rode 1× — no loading OU ao restaurar direto em "contact".
+  const leadStartedRef = useRef(false);
 
   // Offer key from URL: ?oferta=baixa27 → selects price variant
   const offerKey = useMemo(() => {
@@ -206,7 +212,11 @@ export function QuizApp() {
   // isso distingue "refresh na página de resultado" de "nova visita pelo link".
   useEffect(() => {
     if (stage === "result" || stage === "offer") {
-      sessionStorage.setItem(SESSION_RESULT_KEY, "1");
+      // try/catch: storage bloqueado (webview/incógnito restrito) lança
+      // SecurityError — não pode derrubar a árvore no ponto mais valioso do funil.
+      try {
+        sessionStorage.setItem(SESSION_RESULT_KEY, "1");
+      } catch { /* storage indisponível → segue sem a flag de sessão */ }
     }
   }, [stage]);
 
@@ -229,9 +239,12 @@ export function QuizApp() {
   }, [stage]);
 
   // Persiste em localStorage (sobrevive fechar aba). Salva em questions + contact/result/offer.
+  // "acolhimento" NÃO é persistido: é alcançável em 1 toque a partir do hero e não é
+  // um stage restaurável (loadSavedState só retoma questions/contact/result/offer) —
+  // salvá-lo geraria um snapshot que o restore descarta, apagando estado anterior válido.
   useEffect(() => {
     if (preview) return;
-    if (stage === "hero" || stage === "loading") return;
+    if (stage === "hero" || stage === "acolhimento" || stage === "loading") return;
     try {
       localStorage.setItem(SAVED_KEY, JSON.stringify({
         stage, qIndex, answers, name, whatsapp, email, savedAt: Date.now(),
@@ -361,8 +374,22 @@ export function QuizApp() {
     timers.push(window.setTimeout(() => setStage("contact"), statEnd + step * 2 + 2200));
     // Persiste lead no Supabase (best effort). Lead event disparado na captura de contato.
     // A promise é guardada em leadPromiseRef para o submitContact fazer await.
-    leadPromiseRef.current = persistLead(answers).catch(() => null);
+    ensureLeadStarted();
     return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
+
+  // Dispara persistLead 1× — no fluxo normal via loading, e também quando o quiz é
+  // restaurado direto no gate de contato (loading nunca roda). Sem isso o
+  // leadPromiseRef fica em Promise.resolve(null) e submitContact não salva o contato.
+  function ensureLeadStarted() {
+    if (leadStartedRef.current) return;
+    leadStartedRef.current = true;
+    leadPromiseRef.current = persistLead(answers).catch(() => null);
+  }
+  useEffect(() => {
+    if (preview) return;
+    if (stage === "contact") ensureLeadStarted();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
@@ -525,7 +552,12 @@ export function QuizApp() {
           // CAPI Lead (server-side) — mesmo eventID do pixel → dedup no Meta.
           // Cobre os ~75% de leads que o pixel client-side perde (adblock/iOS).
           try {
-            const { fbp, fbc } = readFbCookies();
+            // fbc via getMetaClickData: aplica o fallback fbclid→fb.1.<ts>.<fbclid>
+            // (usuária sem cookie _fbc mas com fbclid — exatamente o público server-side).
+            const cached = getMetaClickData();
+            const fresh = readFbCookies();
+            const fbp = fresh.fbp ?? cached.fbp;
+            const fbc = cached.fbc ?? fresh.fbc;
             void getSupabase()?.functions.invoke("track-event", {
               body: {
                 event_name: "Lead",
