@@ -771,18 +771,12 @@ function HeroScreen({ onPickPain }: { onPickPain: (p: string) => void }) {
     >
       {/* Cruz decorativa brush-stroke — removida do fundo, agora inline na headline */}
 
-      <div className="relative z-10 flex w-full flex-col items-center gap-1">
-        <div className="flex w-full items-start justify-center gap-3 sm:gap-4">
-          <GuideAvatar size="corner" />
-          <SpeechBubble
-            text="Deus não te chamou pra viver de plantão."
-            typingDelay={400}
-          />
-        </div>
-        <div className="flex items-center gap-1.5" style={{ marginTop: 2 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#5FA86B", display: "inline-block" }} />
-          <span style={{ fontSize: 11, color: "#7A7185" }}>Jaqueline · online agora</span>
-        </div>
+      <div className="relative z-10 flex w-full items-start justify-center gap-3 sm:gap-4">
+        <GuideAvatar size="corner" />
+        <SpeechBubble
+          text="Deus não te chamou pra viver de plantão."
+          typingDelay={400}
+        />
       </div>
 
       <h1 className="rdp-title-gradient relative z-10 mt-7 text-balance font-display text-[30px] leading-[1.1] tracking-tight sm:mt-8 sm:text-[48px] sm:leading-[1.08]">

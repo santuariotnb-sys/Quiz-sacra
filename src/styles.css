@@ -85,10 +85,10 @@ input, select, textarea {
 @keyframes sa-shine { to { background-position: 200% center; } }
 @keyframes sa-ctaGlow { 0%,100% { box-shadow: 0 12px 34px rgba(176,138,56,.35); } 50% { box-shadow: 0 12px 50px rgba(212,175,55,.65); } }
 @keyframes sa-ringSpin { to { transform: rotate(360deg); } }
-@keyframes sa-btnPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes sa-btnPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 @keyframes sa-pinkGlow { 0%,100% { box-shadow: 0 14px 40px rgba(224,139,196,.35); } 50% { box-shadow: 0 14px 60px rgba(232,155,208,.75); } }
 @keyframes sa-vagaBlink { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-@keyframes sa-arrowPulse { 0%,100% { opacity: .4; transform: translateY(0); } 50% { opacity: .9; transform: translateY(8px); } }
+@keyframes sa-arrowPulse { 0%,100% { opacity: .5; transform: translateY(0) scale(1); } 50% { opacity: 1; transform: translateY(14px) scale(1.15); } }
 @keyframes sa-playPulse { 0%,100% { transform: scale(1); box-shadow: 0 6px 18px rgba(0,0,0,.35); } 50% { transform: scale(1.08); box-shadow: 0 8px 24px rgba(0,0,0,.45); } }
 @keyframes sa-volLoop { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 

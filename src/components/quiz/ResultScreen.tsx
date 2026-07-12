@@ -137,7 +137,12 @@ export function ResultScreen({
     const reduce = prefersReducedMotion();
 
     root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
-      s.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+      s.getAnimations({ subtree: true }).forEach((a) => {
+        // Preserve infinite CSS animations on .sa-cta-keep elements (pulse, glow, arrow)
+        const target = a.effect?.target as HTMLElement | null;
+        if (target?.closest?.(".sa-cta-keep")) return;
+        a.cancel();
+      });
       s.style.transform = "none";
       s.style.filter = "none";
     });
@@ -389,19 +394,20 @@ export function ResultScreen({
           <div style={{ fontSize: 11, color: "#8A7C93", marginTop: 10 }}>Leva 3 minutos · Sem compromisso</div>
         </div>
 
-        {/* Micro-CTA lateral — seta pulsante indicando scroll */}
+        {/* Seta lateral — scroll indicator */}
         <div style={{
           display: cur === 0 ? "flex" : "none",
-          position: "fixed", right: 6, top: "28%", height: "45%",
+          position: "fixed", right: 4, top: "30%", height: "40%",
           flexDirection: "column", alignItems: "center", justifyContent: "center",
           zIndex: 30, pointerEvents: "none",
         }}>
-          <div style={{
-            width: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-            animation: "sa-arrowPulse 2s ease-in-out infinite",
+          <div className="sa-cta-keep" style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            animation: "sa-arrowPulse 1.8s ease-in-out infinite",
           }}>
-            <svg viewBox="0 0 20 40" style={{ width: 20, height: 40, opacity: .5 }}>
-              <path d="M10 0 L10 36 M4 30 L10 38 L16 30" fill="none" stroke={P.goldWarm} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <div style={{ width: 2, height: 60, background: `linear-gradient(180deg, transparent, ${P.goldWarm})`, borderRadius: 2 }} />
+            <svg viewBox="0 0 24 20" style={{ width: 28, height: 20 }}>
+              <path d="M4 4 L12 16 L20 4" fill="none" stroke={P.goldWarm} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         </div>
@@ -448,24 +454,25 @@ export function ResultScreen({
           </div>
         </div>
         </div>
-        {/* Micro-CTA lateral — seta pulsante slide 1 */}
+        {/* Seta lateral — scroll indicator slide 1 */}
         <div style={{
           display: cur === 1 ? "flex" : "none",
-          position: "absolute", right: 6, top: "28%", height: "45%",
+          position: "absolute", right: 4, top: "30%", height: "40%",
           flexDirection: "column", alignItems: "center", justifyContent: "center",
           zIndex: 30, pointerEvents: "none",
         }}>
-          <div style={{
-            width: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-            animation: "sa-arrowPulse 2s ease-in-out infinite",
+          <div className="sa-cta-keep" style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            animation: "sa-arrowPulse 1.8s ease-in-out infinite",
           }}>
-            <svg viewBox="0 0 20 40" style={{ width: 20, height: 40, opacity: .45 }}>
-              <path d="M10 0 L10 36 M4 30 L10 38 L16 30" fill="none" stroke={P.goldSoft} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <div style={{ width: 2, height: 60, background: `linear-gradient(180deg, transparent, ${P.goldSoft})`, borderRadius: 2 }} />
+            <svg viewBox="0 0 24 20" style={{ width: 28, height: 20 }}>
+              <path d="M4 4 L12 16 L20 4" fill="none" stroke={P.goldSoft} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         </div>
         <div style={scrimForDark()}>
-          <button data-next className="sa-cta-keep" onClick={() => { if (curRef.current === 1) go(2); }} style={btnDark}>{shared.cta2}</button>
+          <button data-next className="sa-cta-keep" onClick={() => { if (curRef.current === 1) go(2); }} style={{ ...btnDark, width: "calc(100% - 48px)", maxWidth: 420 }}>{shared.cta2}</button>
         </div>
       </div>
 
@@ -503,11 +510,28 @@ export function ResultScreen({
           )}
         </div>
         </div>
+        {/* Seta lateral — scroll indicator slide 2 */}
+        <div style={{
+          display: cur === 2 ? "flex" : "none",
+          position: "absolute", right: 4, top: "30%", height: "40%",
+          flexDirection: "column", alignItems: "center", justifyContent: "center",
+          zIndex: 30, pointerEvents: "none",
+        }}>
+          <div className="sa-cta-keep" style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            animation: "sa-arrowPulse 1.8s ease-in-out infinite",
+          }}>
+            <div style={{ width: 2, height: 60, background: `linear-gradient(180deg, transparent, ${P.goldWarm})`, borderRadius: 2 }} />
+            <svg viewBox="0 0 24 20" style={{ width: 28, height: 20 }}>
+              <path d="M4 4 L12 16 L20 4" fill="none" stroke={P.goldWarm} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
         <div style={scrimForLight()}>
           <button
             className="sa-cta-keep"
             onClick={onContinue}
-            style={{ ...btnGold, pointerEvents: "auto", fontSize: 13.5, letterSpacing: 1.5, padding: "18px 32px" }}
+            style={{ ...btnGold, pointerEvents: "auto", fontSize: 13.5, letterSpacing: 1.5, padding: "18px 24px", width: "calc(100% - 48px)", maxWidth: 420 }}
           >
             {ctaLabel}
           </button>
