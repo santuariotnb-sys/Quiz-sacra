@@ -188,6 +188,39 @@ export type NeurofeBox = {
   texto: string;
 };
 
+/** Slide 1 (Mecanismo) — igual para os 4 arquétipos */
+export const NEUROFE_SHARED = {
+  headline: 'Você não precisa de mais força. Precisa tirar o corpo do <b>estado de guerra.</b>',
+  setup: 'Você tentou descansar, controlar os pensamentos, orar no meio do turbilhão. E quando nada mudava, concluía que o problema era você.',
+  faithProtect: '<b>Sua fé não falhou.</b><br>Você só buscou paz espiritual com o corpo ainda recebendo sinais de perigo.',
+  signal: 'Alarme não desliga com cobrança.<br><b>Desliga com sinal.</b>',
+  boxes: [
+    { icone: '🫁', titulo: 'CORPO', texto: 'A respiração avisa: agora não há emergência. O peito solta, os ombros descem.' },
+    { icone: '🧠', titulo: 'MENTE', texto: 'A ronda de pensamentos perde velocidade. O "preciso resolver" vira "posso entregar".' },
+    { icone: '🕊️', titulo: 'ESPÍRITO', texto: 'Sem o ruído, a Palavra encontra espaço. A oração volta a ser encontro — não cobrança.' },
+  ],
+  union: 'Não é técnica no lugar da fé. É <b>preparar o corpo pra que a fé tenha onde pousar.</b>',
+  cta2: 'E O QUE MUDA QUANDO O ALARME BAIXA? ▸',
+} as const;
+
+/** Copy por arquétipo — Slides 0 (Diagnóstico) e 2 (Transformação) */
+export type NeurofeContent = {
+  tagline: string;
+  identificacao: string[];
+  perda: string;
+  reframe: string;
+  tentativas: string[];
+  versiculoTxt: string;
+  versiculoRef: string;
+  versiculoNota: string;
+  cta1: string;
+  mudaHeadline: string;
+  cenas: string[];
+  encontra: string;
+  custo: string;
+};
+
+/** @deprecated Mantido para OfferScreen — será removido na migração */
 export type NeurofeData = {
   dores: [string, string];
   espelho: string;
@@ -214,6 +247,8 @@ export type ArchetypeData = {
   mechanism: MechanismData;
   mirrorChecks: MirrorChecks;
   neurofe: NeurofeData;
+  /** Copy v3 (3 slides) — usado pelo ResultScreen refatorado */
+  neurofe3: NeurofeContent;
   /** HTML rico — renderizado via dangerouslySetInnerHTML. */
   mechanismHtml: string;
   /** HTML rico do bloco "desarme" (verdade + versículo). */
@@ -306,6 +341,31 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
         "Você deita. A mente não liga o radar. Pela primeira vez em anos, <b>o sono vem sem luta</b> — e você acorda com a sensação esquecida de ter descansado de verdade. A noite deixou de ser turno e voltou a ser abrigo.",
       proximoPasso:
         "No próximo passo, eu te mostro <b>como a Neurofé desliga esse radar no seu padrão Vigilante</b> — em poucos minutos.",
+    },
+    neurofe3: {
+      tagline: 'Você virou a sentinela da casa — e ninguém nunca te rendeu do plantão.',
+      identificacao: [
+        'Você deita exausta. E a mente liga: o dia, os filhos, as contas.',
+        'Um barulho, um silêncio estranho — e você <b>já levantou.</b>',
+      ],
+      perda: 'Descansar virou perigo.<br><b>E o seu corpo esqueceu como é ficar em paz.</b>',
+      reframe: '<b>Isso não é falta de fé.</b> É um alarme travado no ligado.',
+      tentativas: [
+        'Você tentou dormir mais cedo. Contar carneiro. Rezar até pegar no sono.',
+        'Mas ninguém te ensinou a dizer ao corpo que <b>a noite não é seu turno.</b>',
+      ],
+      versiculoTxt: '"Eis que não dormita nem dorme o guarda de Israel."',
+      versiculoRef: 'SALMO 121',
+      versiculoNota: 'Ele fica de vigia a noite inteira. Pra você poder fechar os olhos.',
+      cta1: 'POR QUE EU NÃO CONSIGO DESLIGAR? ▸',
+      mudaHeadline: 'Imagine dormir a noite inteira — sem lutar pra isso.',
+      cenas: [
+        'Você deita — e a mente <b>não liga o radar.</b>',
+        'O sono vem sem briga, pela primeira vez em anos.',
+        'Você acorda — e lembra como é ter <b>descansado de verdade.</b>',
+      ],
+      encontra: 'Encontra sono.<br>Encontra silêncio.<br>Encontra abrigo.',
+      custo: 'Continuar assim custa mais que noites ruins. Custa a sua <b>saúde</b>, a sua <b>paciência</b> e as manhãs que você começa <b>já vencida.</b>',
     },
     chapters: [
       {
@@ -427,6 +487,31 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       proximoPasso:
         "No próximo passo, eu te mostro <b>como a Neurofé desliga esse alarme no seu padrão Sobrecarga</b> — em poucos minutos.",
     },
+    neurofe3: {
+      tagline: 'Você virou o lugar seguro de todo mundo — e ficou sem lugar seguro dentro de si.',
+      identificacao: [
+        'Quando alguém precisa, você resolve.<br>Quando é <b>você</b> que precisa, você engole e diz que está tudo bem.',
+        'Seu corpo deita. Sua mente não.',
+      ],
+      perda: 'Você não está só cansada.<br><b>A sobrecarga está roubando a mulher que você era.</b>',
+      reframe: '<b>Isso não é fé fraca.</b> É um corpo que esqueceu como baixar a guarda.',
+      tentativas: [
+        'Você tentou ser mais forte. Orar mais. Dar conta de tudo.',
+        'Mas ninguém te ensinou a dizer ao corpo que <b>o turno acabou.</b>',
+      ],
+      versiculoTxt: '"Vinde a mim, os que estais cansados e sobrecarregados, e eu vos aliviarei."',
+      versiculoRef: 'MATEUS 11:28',
+      versiculoNota: 'Ele não pediu que você aguentasse mais. Pediu que você soltasse.',
+      cta1: 'POR QUE EU NÃO CONSIGO DESLIGAR? ▸',
+      mudaHeadline: 'Imagine o fim do dia sem precisar fugir de si mesma.',
+      cenas: [
+        'Seu filho chama — e você responde <b>sem explodir.</b>',
+        'Você deita — e não passa a madrugada resolvendo o que nem aconteceu.',
+        'Você ora — e encontra <b>presença</b>, não uma lista de preocupações.',
+      ],
+      encontra: 'Encontra presença.<br>Encontra silêncio.<br>Encontra descanso.',
+      custo: 'Continuar assim custa mais que noites ruins. Custa a sua <b>paciência</b>, a sua <b>presença</b> e a <b>leveza</b> de estar com Deus sem cobrança.',
+    },
     chapters: [
       {
         num: "05",
@@ -545,6 +630,31 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
         "Você ora — e não bate no teto. Pela primeira vez em muito tempo, <b>você se sente ouvida, não julgada</b>. O peso sai do peito. E a fé volta a ser abraço, não prova que você vive reprovando.",
       proximoPasso:
         "No próximo passo, eu te mostro <b>como a Neurofé silencia essa acusação no seu padrão Culposa</b> — em poucos minutos.",
+    },
+    neurofe3: {
+      tagline: 'Você aprendeu que descansar é falhar — com todo mundo, e com Deus.',
+      identificacao: [
+        'Você faz — e ainda acha que não fez o bastante.<br>Descansa cinco minutos e a <b>culpa</b> cobra o resto.',
+        'Você ora — e a oração vem pesada, como mais uma conta a pagar.',
+      ],
+      perda: 'A culpa não te faz mais fiel.<br><b>Ela só te impede de parar.</b>',
+      reframe: '<b>Cansaço não é pecado.</b> Foi Deus quem inventou o descanso.',
+      tentativas: [
+        'Você tentou orar mais. Servir mais. Ser suficiente.',
+        'Mas a voz que te condena o dia inteiro <b>não é a d\u2019Ele.</b>',
+      ],
+      versiculoTxt: '"Agora, nenhuma condenação há para os que estão em Cristo Jesus."',
+      versiculoRef: 'ROMANOS 8:1',
+      versiculoNota: 'A voz d\u2019Ele não te acusa. Te chama pra descansar.',
+      cta1: 'POR QUE EU NÃO CONSIGO PARAR DE ME COBRAR? ▸',
+      mudaHeadline: 'Imagine orar sem sentir que está devendo.',
+      cenas: [
+        'Você fecha os olhos pra orar — e é <b>encontro</b>, não cobrança.',
+        'Você descansa — e a culpa não vem atrás.',
+        'Você erra um dia — e sabe que a graça <b>não depende do teu desempenho.</b>',
+      ],
+      encontra: 'Encontra graça.<br>Encontra descanso.<br>Encontra Deus sem cobrança.',
+      custo: 'Continuar assim custa mais que cansaço. Custa a sua <b>alegria</b>, a sua <b>oração</b> e a certeza de que Deus te ama <b>antes</b> de você produzir.',
     },
     chapters: [
       {
@@ -665,6 +775,31 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
       proximoPasso:
         "No próximo passo, eu te mostro <b>como a Neurofé aquieta esse alarme no seu padrão Antecipatória</b> — em poucos minutos.",
     },
+    neurofe3: {
+      tagline: 'Você já vive o pior antes de ele acontecer — e ele quase nunca acontece.',
+      identificacao: [
+        'Sua mente ensaia tragédias que ainda nem chegaram.',
+        'O "e se" não desliga — nem quando <b>está tudo bem.</b>',
+      ],
+      perda: 'Você perde o hoje<br><b>cuidando de amanhãs que talvez nunca venham.</b>',
+      reframe: '<b>Não é falta de fé imaginar o pior.</b> É um radar viciado em procurar perigo.',
+      tentativas: [
+        'Você tentou controlar tudo. Prever tudo. Se preparar pra tudo.',
+        'Mas o amanhã <b>já tem Dono</b> — e não é você.',
+      ],
+      versiculoTxt: '"Não vos inquieteis com o dia de amanhã, porque o amanhã cuidará de si mesmo."',
+      versiculoRef: 'MATEUS 6:34',
+      versiculoNota: 'Deus te dá graça pra um dia. Não pra os cem que você inventa.',
+      cta1: 'POR QUE EU NÃO CONSIGO DESLIGAR O "E SE"? ▸',
+      mudaHeadline: 'Imagine viver o dia que existe.',
+      cenas: [
+        'O "e se" <b>perde a voz.</b>',
+        'Sua mente para de ensaiar desastres e volta pro presente.',
+        'Você entrega o amanhã pra Quem já está lá — e <b>respira hoje.</b>',
+      ],
+      encontra: 'Encontra presente.<br>Encontra calma.<br>Encontra confiança.',
+      custo: 'Continuar assim custa mais que preocupação. Custa a sua <b>presença</b>, os momentos bons que passam <b>enquanto você teme o que não veio</b>, e a paz de confiar.',
+    },
     chapters: [
       {
         num: "01",
@@ -707,18 +842,38 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
 };
 
 export const DESIRE_CTA: Record<string, string> = {
-  dormir: "Quero dormir uma noite inteira",
-  descansar: "Quero descansar sem culpa",
-  orar: "Quero sentir Deus de novo",
-  "parar-pior": "Quero parar de imaginar o pior",
+  dormir: "QUERO DORMIR EM PAZ →",
+  descansar: "QUERO VOLTAR A DESCANSAR DE VERDADE →",
+  orar: "QUERO VOLTAR A ORAR SEM CULPA →",
+  "parar-pior": "QUERO PARAR DE IMAGINAR O PIOR →",
 };
 
-/** Frase em primeira pessoa, do jeito que a usuária escreveria — usada na ponte e na oferta. */
+/** Headline + sub da oferta por arquétipo (name uppercase). */
+export const OFFER_HEADLINE: Record<string, { h: string; sub: string }> = {
+  VIGILANTE: {
+    h: "<span class=\"sa-offer-eyebrow\">EM 7 NOITES</span>Sua mente<br>vai aprender<br>a <em>desligar.</em><small>E a paz vai durar <mark>a noite toda,</mark> após desligar o alarme da vigilância e da exaustão.</small>",
+    sub: "Vigilante: um cérebro preso em modo de guarda. O <b class=\"sa-gold\">Protocolo Neurofé</b> aplica a Palavra pra render essa guarda e cuidar de você inteira — 10 minutos por sessão, e o alarme desliga.",
+  },
+  SOBRECARGA: {
+    h: "<span class=\"sa-offer-eyebrow\">JÁ NA PRIMEIRA SESSÃO</span>Você vai<br>sentir o<br><em>peso saindo.</em><small>E o descanso vai chegar <mark>de verdade,</mark> após desligar o alarme da sobrecarga e do esgotamento.</small>",
+    sub: "Sobrecarga: um corpo em alerta que gasta energia até parada. O <b class=\"sa-gold\">Protocolo Neurofé</b> desliga esse alerta com a Palavra — cuidando de você inteira, 10 minutos por sessão, nenhuma tarefa a mais na sua lista.",
+  },
+  CULPOSA: {
+    h: "<span class=\"sa-offer-eyebrow\">A PARTIR DE HOJE</span>Você vai<br>descansar<br><em>sem pedir<br>desculpa.</em><small>E a paz da sua oração vai durar <mark>o dia todo,</mark> após desligar o alarme da culpa e do stress.</small>",
+    sub: "Culposa: não é falta de fé, é um alarme neural que religa depois que você ora. O <b class=\"sa-gold\">Protocolo Neurofé</b> acalma o corpo pra Palavra alcançar você inteira — e manter o que a oração começa.",
+  },
+  "ANTECIPATÓRIA": {
+    h: "<span class=\"sa-offer-eyebrow\">A PARTIR DE HOJE</span>Sua mente<br>vai parar de<br><em>ensaiar<br>o pior.</em><small>E o hoje vai voltar a ser <mark>seguro,</mark> após desligar o alarme da antecipação e do medo.</small>",
+    sub: "Antecipatória: um cérebro treinado a sofrer adiantado. O <b class=\"sa-gold\">Protocolo Neurofé</b> usa a Palavra pra trazer você de volta pro hoje, inteira — onde dá pra descansar.",
+  },
+};
+
+/** Frase curta — usada no eco do desejo (Slide 2 resultado) e na oferta. */
 export const DESIRE_QUOTE: Record<string, string> = {
-  dormir: "dormir uma noite inteira sem acordar de madrugada.",
-  descansar: "conseguir parar e descansar sem sentir culpa.",
-  orar: "conseguir orar e sentir que Deus me ouve novamente.",
-  "parar-pior": "parar de imaginar o pior o tempo todo.",
+  dormir: "dormir em paz",
+  descansar: "descansar de verdade",
+  orar: "orar sem culpa",
+  "parar-pior": "parar de imaginar o pior",
 };
 
 // ── Seção DESEJO no resultado: bloco emocional do "depois", keyado pelo desejo ──

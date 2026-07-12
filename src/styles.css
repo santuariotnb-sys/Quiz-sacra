@@ -88,6 +88,93 @@ input, select, textarea {
 @keyframes sa-btnPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 @keyframes sa-pinkGlow { 0%,100% { box-shadow: 0 14px 40px rgba(224,139,196,.35); } 50% { box-shadow: 0 14px 60px rgba(232,155,208,.75); } }
 @keyframes sa-vagaBlink { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes sa-arrowPulse { 0%,100% { opacity: .4; transform: translateY(0); } 50% { opacity: .9; transform: translateY(8px); } }
+@keyframes sa-playPulse { 0%,100% { transform: scale(1); box-shadow: 0 6px 18px rgba(0,0,0,.35); } 50% { transform: scale(1.08); box-shadow: 0 8px 24px rgba(0,0,0,.45); } }
+@keyframes sa-volLoop { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* ── Headline da oferta — Rodada 9 (escaneável) ─────────────────── */
+.sa-offer-hero { text-align: left; }
+.sa-offer-eyebrow {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #8A6A2A;
+  display: block;
+}
+.sa-offer-h1 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 900;
+  font-size: clamp(34px, 10.2vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.026em;
+  text-transform: uppercase;
+  color: #3D2645;
+  text-align: left;
+  margin: 8px 0 0;
+}
+.sa-offer-h1 em {
+  font-style: normal;
+  display: inline-block;
+  background: linear-gradient(90deg, #B08A38, #8A5FB0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.sa-offer-h1 small {
+  display: block;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #5D5368;
+  max-width: 300px;
+  margin-top: 16px;
+}
+.sa-offer-h1 mark {
+  background: none;
+  padding: 0;
+  font-weight: 700;
+  color: #8A5FB0;
+}
+.sa-offer-h1 mark::before,
+.sa-offer-h1 mark::after { content: none; }
+.sa-offer-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.sa-offer-chip {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: .5px;
+  color: #8A6A2A;
+  background: rgba(255,255,255,.7);
+  border: 1px solid rgba(176,138,56,.4);
+  border-radius: 99px;
+  padding: 7px 13px;
+}
+.sa-offer-playcta { display: flex; align-items: center; gap: 10px; margin: 20px 0 12px; }
+.sa-offer-playcta .dot {
+  display: inline-flex;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #B08A38, #E4C878);
+  color: #241B33;
+  font-size: 11px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  animation: rdp-bob 1.6s ease-in-out infinite;
+}
+.sa-offer-playcta .txt {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #8A5FB0;
+}
+.sa-offer-playcta .txt b { color: #3D2645; }
+.sa-gold { color: #B08A38 !important; }
 
 /* ============ Rotina de Paz custom utilities ============ */
 
@@ -121,11 +208,38 @@ input, select, textarea {
   background-image: linear-gradient(135deg, #D9C5A5 0%, #C9A876 100%);
 }
 .rdp-title-gradient {
-  background-image: linear-gradient(125deg, #443A52 0%, #6A4F66 52%, #9C6B54 100%);
+  background-image: linear-gradient(135deg, #8A5E78 0%, #7B5A8E 30%, #9B6B8A 60%, #C9A876 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
+  filter: drop-shadow(0 1px 3px rgba(117, 97, 127, 0.15));
+}
+/* Hero: seta dos botões de dor piscando (micro-CTA) */
+@keyframes rdp-arrow-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.92); }
+}
+.rdp-arrow-pulse {
+  animation: rdp-arrow-pulse 1.8s ease-in-out infinite;
+}
+/* Hero: shimmer suave nos botões de dor */
+@keyframes rdp-btn-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.rdp-btn-pain {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(212,165,181,0.12) 25%,
+    rgba(196,168,188,0.18) 50%,
+    rgba(212,165,181,0.12) 75%,
+    rgba(255,255,255,0) 100%
+  ),
+  linear-gradient(to bottom right, #fff, var(--milk-warm), rgba(239,217,221,0.3));
+  background-size: 200% 100%, 100% 100%;
+  animation: rdp-btn-shimmer 3.5s ease-in-out infinite;
 }
 .rdp-gradient-soft {
   background-image: linear-gradient(180deg, #FAF6F4 0%, #F6EFEA 100%);
@@ -490,6 +604,51 @@ input, select, textarea {
   border-top: 1px solid var(--border);
   padding-top: 22px;
   margin-top: 40px;
+}
+
+/* ============ Resultado — micro-CTA lateral + efeitos ============ */
+@keyframes rdp-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.rdp-float { animation: rdp-float 3s ease-in-out infinite; }
+
+@keyframes rdp-scroll-hint {
+  0%, 100% { opacity: 0.5; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(6px); }
+}
+.rdp-scroll-hint {
+  position: fixed;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  animation: rdp-scroll-hint 2s ease-in-out infinite;
+}
+.rdp-scroll-hint span {
+  writing-mode: vertical-rl;
+  font-size: 9px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: rgba(139,106,42,.5);
+  text-transform: uppercase;
+}
+.rdp-scroll-hint-arrow {
+  font-size: 16px;
+  color: rgba(139,106,42,.45);
+}
+
+/* ============ Tela Alerta (Idade) ============ */
+.rdp-alert-banner {
+  background: linear-gradient(135deg, #7A1F1F 0%, #5C1818 100%);
+}
+.rdp-alert-bar {
+  background: linear-gradient(90deg, #D4A5B5 0%, #C9A876 100%);
 }
 
 /* prefers-reduced-motion: desliga todas as animações */

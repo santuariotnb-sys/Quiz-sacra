@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import luzDourada from "@/assets/luz-dourada.webp";
 import descanso from "@/assets/descanso.webp";
-import jaquelineImg from "@/assets/jaqueline.webp";
-import { DESIRE_CTA, type ArchetypeData } from "@/data/quiz";
+import { DESIRE_CTA, DESIRE_QUOTE, NEUROFE_SHARED, type ArchetypeData } from "@/data/quiz";
 
 /**
- * Tela A — Apresentação / Resultado (design Neurofé).
- * Motor de "stories" de 5 cenas (Revelação · Verdade · Mecanismo · Imagine · CTA),
- * port fiel de `Apresentação Sacra.dc.html`. Animações via WAAPI/rAF em useEffect.
+ * Tela A — Resultado (design Neurofé v3 · 3 slides).
+ * Motor de "stories": Diagnóstico · Mecanismo · Transformação.
+ * Animações via WAAPI/rAF. Copy por ARQUÉTIPO (neurofe3) + NEUROFE_SHARED.
  *
- * TRACKING (SAGRADO #1): o CTA da cena 4 chama `onContinue` (= goToOffer no pai).
- * Corpo/conteúdo por ARQUÉTIPO (archetype.neurofe.*); label do CTA por DESEJO (DESIRE_CTA).
+ * TRACKING (SAGRADO): CTA da cena 2 chama `onContinue` (= goToOffer no pai).
+ * Label do CTA por DESEJO (DESIRE_CTA). Eco do desejo via DESIRE_QUOTE.
  */
 
-const SCENES = 5;
-const FALLBACK_CTA = "Eu creio — quero minha paz";
+const SCENES = 3;
+const SCENE_LABELS = ["Diagnóstico", "Mecanismo", "Transformação"];
+const FALLBACK_CTA = "QUERO COMEÇAR AGORA →";
 
-// Paleta do design (hex verbatim — takeover full-bleed, independente das vars do quiz).
 const P = {
   creme: "#F6F0E4",
   cremeDeep: "#F0E6D2",
@@ -27,23 +26,16 @@ const P = {
   goldWarm: "#B08A38",
   goldSoft: "#E4C878",
   purple: "#8A5FB0",
+  purpleDeep: "#3B2B52",
   cremeText: "#EFE7D6",
 };
 
 const EASE = "cubic-bezier(.22,.8,.3,1)";
 
-// Acessibilidade: usuários com "reduzir movimento" não recebem partículas nem
-// as transições WAAPI de cena (scale+blur full-screen) — só o estado final.
 const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
   typeof window.matchMedia === "function" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-// versão curta dos boxes (design: primeiras 2 frases) para caber na cena Mecanismo.
-function shorten(t: string): string {
-  const s = (t || "").split(". ");
-  return s.slice(0, 2).join(". ") + (s.length > 2 ? "." : "");
-}
 
 const btnDark: React.CSSProperties = {
   pointerEvents: "auto",
@@ -52,8 +44,8 @@ const btnDark: React.CSSProperties = {
   border: "1.5px solid rgba(228,200,120,.7)",
   color: P.goldSoft,
   fontWeight: 700,
-  fontSize: 13,
-  letterSpacing: 2,
+  fontSize: 12.5,
+  letterSpacing: 1,
   padding: "14px 36px",
   borderRadius: 50,
   cursor: "pointer",
@@ -95,6 +87,11 @@ function scrimForLight(): React.CSSProperties {
   return { ...btnRow, background: "linear-gradient(180deg, rgba(246,240,228,0), rgba(246,240,228,.95) 62%)" };
 }
 
+/** Renderiza string com <b>, <br> como HTML */
+function Html({ html, ...rest }: { html: string } & React.HTMLAttributes<HTMLDivElement> & { style?: React.CSSProperties }) {
+  return <div dangerouslySetInnerHTML={{ __html: html }} {...rest} />;
+}
+
 export function ResultScreen({
   archetype,
   desire,
@@ -106,19 +103,18 @@ export function ResultScreen({
   desire?: string;
   onContinue: () => void;
 }) {
-  const n = archetype.neurofe;
+  const n = archetype.neurofe3;
+  const shared = NEUROFE_SHARED;
   const ctaLabel = (desire && DESIRE_CTA[desire]) || FALLBACK_CTA;
-  const boxes = n.boxes.map((b) => ({ ...b, textoCurto: shorten(b.texto) }));
-  const mudaWords = (n.mudaCorpo || "").replace(/<\/?b>/g, "").split(" ");
+  const desireQuote = desire && DESIRE_QUOTE[desire];
 
   const [cur, setCur] = useState(0);
-  const curRef = useRef(0); // ref = valor instantâneo, sem stale closure
+  const curRef = useRef(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const animating = useRef(false);
   const rafRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
 
-  // limpa o timeout da transição de cena no unmount (evita setState após desmontar)
   useEffect(
     () => () => {
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
@@ -126,42 +122,32 @@ export function ResultScreen({
     [],
   );
 
-  // ── Helper: aplica inline styles finais e cancela WAAPI (libera scroll/transform) ──
   const commitAnim = (a: Animation, el: HTMLElement, styles: Record<string, string>) => {
     a.finished.then(() => {
       Object.assign(el.style, styles);
-      a.cancel(); // remove fill effect — libera transform/filter que trava scroll no iOS
+      a.cancel();
     }).catch(() => {
       Object.assign(el.style, styles);
     });
   };
 
-  // ── Helper: anima entrada da cena ativa e cancela animações das demais ──
-  // Visibility/pointerEvents agora são controlados por React (sceneBase(idx) usa `cur`).
-  // showScene só cuida de cancelar WAAPI e disparar animações de entrada.
   const showScene = useCallback((idx: number) => {
     const root = rootRef.current;
     if (!root) return;
     const reduce = prefersReducedMotion();
 
-    // 1. Cancela animações de TODAS as cenas e reseta transform/filter via DOM
     root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
       s.getAnimations({ subtree: true }).forEach((a) => a.cancel());
       s.style.transform = "none";
       s.style.filter = "none";
     });
 
-    // 2. Pega a cena alvo (já visível via React state)
     const el = root.querySelector<HTMLElement>(`[data-scene="${idx}"]`);
     if (!el) return;
 
-    // 3. reduced-motion: estado final direto
     if (reduce) {
       el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a) => {
         a.style.opacity = "1"; a.style.transform = "none"; a.style.filter = "none";
-      });
-      el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp) => {
-        sp.style.opacity = "1"; sp.style.filter = "none";
       });
       const w = el.querySelector<HTMLElement>("[data-circuit]");
       if (w) w.style.height = "calc(100% - 48px)";
@@ -171,7 +157,6 @@ export function ResultScreen({
       return;
     }
 
-    // 4. Entrada do container (opacity animada via WAAPI, React já setou opacity:1)
     commitAnim(
       el.animate(
         [{ transform: "scale(.97)", filter: "blur(8px)" },
@@ -180,7 +165,6 @@ export function ResultScreen({
       ), el, { transform: "none", filter: "none" },
     );
 
-    // 5. Cascata data-anim
     el.querySelectorAll<HTMLElement>("[data-anim]").forEach((a, i) => {
       commitAnim(
         a.animate(
@@ -191,7 +175,6 @@ export function ResultScreen({
       );
     });
 
-    // 6. Fio de luz (Mecanismo)
     const wire = el.querySelector<HTMLElement>("[data-circuit]");
     if (wire) {
       commitAnim(
@@ -201,16 +184,6 @@ export function ResultScreen({
       );
     }
 
-    // 7. Palavras (Imagine)
-    el.querySelectorAll<HTMLElement>("[data-w]").forEach((sp, i) => {
-      commitAnim(
-        sp.animate([{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0)" }],
-          { duration: 450, delay: 600 + i * 60, easing: "ease-out", fill: "forwards" }),
-        sp, { opacity: "1", filter: "none" },
-      );
-    });
-
-    // 8. Progresso
     root.querySelectorAll<HTMLElement>("[data-seg]").forEach((seg, i) => {
       if (i < idx) seg.style.width = "100%";
       else if (i === idx) {
@@ -224,17 +197,12 @@ export function ResultScreen({
     });
   }, []);
 
-  // ── Navegação — SEM setTimeout, troca imediata ────────────────────
   const go = useCallback(
     (target: number) => {
       if (animating.current || target < 0 || target >= SCENES || target === curRef.current) return;
       animating.current = true;
-
-      // Atualiza ref + state IMEDIATAMENTE — sem setTimeout, sem stale closure
       curRef.current = target;
-      setCur(target); // dispara useEffect → showScene(target)
-
-      // Reabilita interação após a entrada completar
+      setCur(target);
       timeoutRef.current = window.setTimeout(() => {
         animating.current = false;
       }, prefersReducedMotion() ? 100 : 800);
@@ -242,12 +210,9 @@ export function ResultScreen({
     [],
   );
 
-  // ── Entrada da cena atual ─────────────────────────────────────────
-  const SCENE_LABELS = ["Revelação", "Verdade", "Mecanismo", "Imagine", "CTA"];
   useEffect(() => {
     curRef.current = cur;
     showScene(cur);
-    // Tracking: dispara evento por slide para analytics de funil
     try {
       if (typeof window !== "undefined" &&
           ["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) {
@@ -258,20 +223,16 @@ export function ResultScreen({
           archetype: archetype.name,
         });
       }
-    } catch { /* analytics nunca bloqueia o quiz */ }
+    } catch { /* analytics nunca bloqueia */ }
   }, [cur, showScene]);
 
-  // Navegação por teclado removida de propósito: num funil mobile-first ela
-  // "sequestrava" a barra de espaço (rolar a página) e as setas, avançando/pulando
-  // cenas sem querer (ia direto pro último slide). Os botões seguem acessíveis via Tab+Enter.
-
-  // ── Partículas de ouro (+ ~18% roxas) ──
+  // Partículas de ouro
   useEffect(() => {
     const c = rootRef.current?.querySelector<HTMLCanvasElement>("[data-dust]");
     if (!c) return;
     const ctx = c.getContext("2d");
     if (!ctx) return;
-    if (prefersReducedMotion()) return; // sem partículas animadas p/ reduced-motion
+    if (prefersReducedMotion()) return;
     const dpr = window.devicePixelRatio || 1;
     const resize = () => {
       c.width = c.offsetWidth * dpr;
@@ -293,10 +254,7 @@ export function ResultScreen({
       for (const p of parts) {
         p.y -= p.v;
         p.x += p.drift;
-        if (p.y < -0.02) {
-          p.y = 1.02;
-          p.x = Math.random();
-        }
+        if (p.y < -0.02) { p.y = 1.02; p.x = Math.random(); }
         const tw = 0.35 + 0.65 * Math.abs(Math.sin(t / 1400 + p.ph));
         ctx.beginPath();
         ctx.arc(p.x * c.width, p.y * c.height, p.r * dpr, 0, Math.PI * 2);
@@ -306,7 +264,6 @@ export function ResultScreen({
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-    // pausa o rAF quando a aba fica oculta (poupa bateria/CPU em mobile)
     const onVis = () => {
       if (document.hidden) {
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -350,33 +307,32 @@ export function ResultScreen({
         zIndex: 40,
       }}
     >
-      {/* partículas de ouro */}
       <canvas
         data-dust
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 5, pointerEvents: "none" }}
       />
 
-      {/* progresso estilo story */}
+      {/* Progresso — 3 segmentos */}
       <div
         style={{
           position: "absolute",
           top: "calc(14px + env(safe-area-inset-top))",
           left: "50%",
           transform: "translateX(-50%)",
-          width: "min(520px, calc(100% - 40px))",
+          width: "min(420px, calc(100% - 64px))",
           display: "flex",
           gap: 6,
           zIndex: 40,
         }}
       >
         {Array.from({ length: SCENES }).map((_, i) => (
-          <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: "rgba(90,70,40,.18)", overflow: "hidden" }}>
-            <div data-seg style={{ height: "100%", width: "0%", background: `linear-gradient(90deg,${P.goldWarm},${P.goldSoft})` }} />
+          <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: cur >= i ? "rgba(90,70,40,.12)" : "rgba(90,70,40,.18)", overflow: "hidden", boxShadow: cur === i ? "0 0 8px rgba(228,200,120,.4)" : "none", transition: "box-shadow .5s ease" }}>
+            <div data-seg style={{ height: "100%", width: "0%", borderRadius: 99, background: `linear-gradient(90deg,${P.goldWarm},${P.goldSoft})`, boxShadow: "0 0 6px rgba(228,200,120,.5)" }} />
           </div>
         ))}
       </div>
 
-      {/* ── CENA 0 · Revelação ── */}
+      {/* ── SLIDE 0 · Diagnóstico ── */}
       <div
         data-scene="0"
         style={{ ...sceneBase(0), overflowX: "hidden", overflowY: "auto", textAlign: "center", padding: "24px 20px", background: `linear-gradient(180deg,${P.creme},${P.cremeDeep})` }}
@@ -385,139 +341,183 @@ export function ResultScreen({
           <img src={luzDourada} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", animation: "sa-kenburns 18s ease-out infinite alternate" }} />
         </div>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(246,240,228,.55), rgba(246,240,228,.25) 45%, rgba(246,240,228,.8))" }} />
-        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", margin: "auto", padding: "20px 0 28px", width: "min(480px,100%)" }}>
-          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 12, letterSpacing: 5, color: P.goldText, fontWeight: 600 }}>ROTINA DE PAZ</div>
-          <div data-anim style={{ opacity: 0, marginTop: 14, position: "relative", width: 76, height: 76, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "1px dashed rgba(139,106,42,.5)", animation: "sa-ringSpin 24s linear infinite" }} />
-            <div style={{ position: "absolute", inset: 9, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(244,222,160,.9), rgba(200,160,80,.55))", boxShadow: "0 0 30px rgba(212,175,55,.5)", animation: "sa-breathe 5.5s ease-in-out infinite" }} />
-            <div style={{ position: "relative", fontSize: 10, letterSpacing: 2, color: P.goldDeep, fontWeight: 700 }}>100%</div>
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", margin: "auto", padding: "20px 0 40px", width: "min(480px,100%)" }}>
+          {/* Badge + Header */}
+          <div data-anim style={{ opacity: 0, width: 56, height: 56, borderRadius: "50%", background: "radial-gradient(circle at 35% 30%, rgba(244,222,160,.95), rgba(200,160,80,.55))", boxShadow: "0 0 30px rgba(212,175,55,.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: P.goldDeep, border: "1px dashed rgba(139,106,42,.45)" }}>100%</div>
+          <div data-anim style={{ opacity: 0, fontSize: 10, letterSpacing: 2.5, color: P.goldText, fontWeight: 700, marginTop: 10 }}>DIAGNÓSTICO CONCLUÍDO · SEU PADRÃO É</div>
+          <h1 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(32px, 9vw, 50px)", fontWeight: 500, color: P.purple, margin: "2px 0 0", lineHeight: 1, textShadow: "0 2px 30px rgba(138,95,176,.25)", overflowWrap: "break-word", wordBreak: "break-word", maxWidth: "100%" }}>{archetype.name}</h1>
+          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 17, color: "#6B5F76", marginTop: 6, lineHeight: 1.35, maxWidth: 340 }}>{n.tagline}</div>
+
+          {/* Micro-CTA scroll ↓ */}
+          <div data-anim style={{ opacity: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, marginTop: 18 }}>
+            <div style={{ fontSize: 11, color: P.goldText, fontWeight: 600, letterSpacing: 1 }}>Role e descubra ↓</div>
           </div>
-          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 3, color: P.goldText, fontWeight: 700, marginTop: 14 }}>DIAGNÓSTICO CONCLUÍDO · SEU PADRÃO É</div>
-          <h1 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: "clamp(36px, 10vw, 56px)", fontWeight: 500, color: P.purple, margin: "4px 0 0", lineHeight: 1, textShadow: "0 2px 30px rgba(138,95,176,.25)", overflowWrap: "break-word", wordBreak: "break-word", maxWidth: "100%" }}>{archetype.name}</h1>
-          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 19, color: "#6B5F76", marginTop: 6 }}>{archetype.result.tagline}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16, textAlign: "left", width: "100%" }}>
-            <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 3, color: P.goldText, fontWeight: 700, textAlign: "center" }}>VOCÊ SE RECONHECE?</div>
-            {n.dores.map((dor, i) => (
-              <div key={i} data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 20, lineHeight: 1.4, color: P.ink, borderLeft: `3px solid ${P.gold}`, paddingLeft: 14 }}>{dor}</div>
+
+          {/* Separador */}
+          <div data-anim style={{ opacity: 0, width: 34, height: 2, background: P.gold, margin: "18px auto 16px" }} />
+
+          {/* Eyebrow + Identificação — alinhado à esquerda com borda dourada */}
+          <div data-anim style={{ opacity: 0, fontSize: 10, letterSpacing: 2.5, color: P.goldText, fontWeight: 700, textAlign: "center" }}>VOCÊ SE RECONHECE?</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12, width: "100%", textAlign: "left" }}>
+            {n.identificacao.map((line, i) => (
+              <Html key={i} data-anim html={line} style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 18, lineHeight: 1.4, color: P.ink, borderLeft: `3px solid ${P.gold}`, paddingLeft: 14 }} />
             ))}
-            <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 18, lineHeight: 1.45, color: P.purple, textAlign: "center", marginTop: 2 }}>{n.espelho}</div>
           </div>
-          <button className="sa-cta-keep" onClick={() => { if (curRef.current === 0) go(1); }} style={{ ...btnGold, marginTop: 18 }}>CONTINUAR ▸</button>
+
+          {/* Pull-quote: perda */}
+          <Html data-anim html={n.perda} style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 21, lineHeight: 1.35, color: P.purple, margin: "22px 0", padding: "0 4px", textAlign: "center" }} />
+
+          {/* Reframe (chip) */}
+          <Html data-anim html={n.reframe} style={{ opacity: 0, background: "linear-gradient(180deg,#FBF7EE,#F4ECDC)", border: "1.5px solid rgba(212,175,55,.5)", borderRadius: 14, padding: "14px 18px", fontSize: 14.5, lineHeight: 1.5, color: P.ink, width: "100%", textAlign: "center" }} />
+
+          {/* Tentativas — alinhado à esquerda */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16, width: "100%", textAlign: "left" }}>
+            {n.tentativas.map((t, i) => (
+              <Html key={i} data-anim html={t} style={{ opacity: 0, fontSize: 14.5, lineHeight: 1.5, color: "#5D5368" }} />
+            ))}
+          </div>
+
+          {/* Versículo — efeito flutuante */}
+          <div data-anim className="rdp-float" style={{ opacity: 0, marginTop: 22, background: "radial-gradient(circle at 50% 0%, rgba(228,200,120,.12), rgba(228,200,120,.03))", border: "1px solid rgba(212,175,55,.35)", borderRadius: 16, padding: "18px 18px", width: "100%", textAlign: "center" }}>
+            <div style={{ fontSize: 10, letterSpacing: 2.5, color: P.goldText, fontWeight: 700 }}>{n.versiculoRef}</div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 18, lineHeight: 1.45, color: P.purpleDeep, marginTop: 8 }}>{n.versiculoTxt}</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "#7A7185", marginTop: 10, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic" }}>{n.versiculoNota}</div>
+          </div>
+
+          {/* CTA inline — com pulse */}
+          <button className="sa-cta-keep" onClick={() => { if (curRef.current === 0) go(1); }} style={{ ...btnGold, pointerEvents: "auto", marginTop: 28, width: "100%", animation: "sa-shine 3s linear infinite, sa-ctaGlow 2.8s ease-in-out infinite, sa-btnPulse 2.2s ease-in-out infinite" }}>{n.cta1}</button>
+          <div style={{ fontSize: 11, color: "#8A7C93", marginTop: 10 }}>Leva 3 minutos · Sem compromisso</div>
+        </div>
+
+        {/* Micro-CTA lateral — seta pulsante indicando scroll */}
+        <div style={{
+          display: cur === 0 ? "flex" : "none",
+          position: "fixed", right: 6, top: "28%", height: "45%",
+          flexDirection: "column", alignItems: "center", justifyContent: "center",
+          zIndex: 30, pointerEvents: "none",
+        }}>
+          <div style={{
+            width: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+            animation: "sa-arrowPulse 2s ease-in-out infinite",
+          }}>
+            <svg viewBox="0 0 20 40" style={{ width: 20, height: 40, opacity: .5 }}>
+              <path d="M10 0 L10 36 M4 30 L10 38 L16 30" fill="none" stroke={P.goldWarm} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
         </div>
       </div>
 
-      {/* ── CENA 1 · A Verdade ── */}
+      {/* ── SLIDE 1 · Mecanismo (NEUROFE_SHARED) ── */}
       <div
         data-scene="1"
-        style={{ ...sceneBase(1), overflow: "hidden", background: "radial-gradient(ellipse 120% 90% at 50% 0%, #3B2B52, #241B33)", color: P.cremeText, textAlign: "center" }}
+        style={{ ...sceneBase(1), overflow: "hidden", background: `radial-gradient(ellipse 120% 90% at 50% 100%, ${P.purpleDeep}, #241B33)`, color: P.cremeText }}
       >
         <div style={{ flex: 1, width: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
-        <div style={{ width: "min(500px,100%)", margin: "auto", padding: "40px 24px 190px" }}>
-          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldSoft, fontWeight: 700 }}>A VERDADE QUE VOCÊ PRECISA OUVIR</div>
-          <h2 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(30px,8vw,40px)", lineHeight: 1.2, margin: "20px 0 0", color: "#F5EEE2" }}>
-            {n.verdadeTitulo1}
-            <br />
-            <em style={{ color: P.goldSoft }}>{n.verdadeTitulo2}</em>
-          </h2>
-          <div data-anim style={{ opacity: 0, fontSize: 15.5, lineHeight: 1.7, color: "#C9BCDB", marginTop: 18 }} dangerouslySetInnerHTML={{ __html: n.verdadeCorpo }} />
-          <div data-anim style={{ opacity: 0, margin: "32px auto 0", background: "radial-gradient(circle at 50% 0%, rgba(228,200,120,.16), rgba(228,200,120,.04))", border: "1px solid rgba(228,200,120,.4)", borderRadius: 18, padding: "26px 24px" }}>
-            <div style={{ fontSize: 10.5, letterSpacing: 3, color: P.goldSoft, fontWeight: 700 }}>{n.versiculoRef.toUpperCase()}</div>
-            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 22, lineHeight: 1.5, color: "#F5EEE2", marginTop: 12 }}>{n.versiculo}</div>
-          </div>
-          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 17, lineHeight: 1.6, color: "#A796BD", marginTop: 22 }}>
-            {n.versiculoNota1}
-            <br />
-            {n.versiculoNota2}
-          </div>
-        </div>
-        </div>
-        <div style={scrimForDark()}>
-          <button data-next className="sa-cta-keep" onClick={() => { if (curRef.current === 1) go(2); }} style={btnDark}>POR QUE NADA FUNCIONOU ▸</button>
-        </div>
-      </div>
+        <div style={{ width: "min(500px,100%)", textAlign: "center", margin: "auto", padding: "32px 22px 160px" }}>
+          <div data-anim style={{ opacity: 0, fontSize: 10, letterSpacing: 3, color: P.goldSoft, fontWeight: 700 }}>O SINAL CERTO SILENCIA O GRITO</div>
+          <Html data-anim html={shared.headline} style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(22px,6.5vw,28px)", lineHeight: 1.22, color: "#F5EEE2", marginTop: 10 }} />
+          <Html data-anim html={shared.setup} style={{ opacity: 0, fontSize: 14, lineHeight: 1.6, color: "#D9CEE8", marginTop: 14 }} />
+          <Html data-anim html={shared.faithProtect} style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 19, lineHeight: 1.35, color: P.goldSoft, margin: "18px 0" }} />
+          <Html data-anim html={shared.signal} style={{ opacity: 0, fontSize: 14, lineHeight: 1.6, color: "#D9CEE8" }} />
 
-      {/* ── CENA 2 · Mecanismo ── */}
-      <div
-        data-scene="2"
-        style={{ ...sceneBase(2), overflow: "hidden", background: "radial-gradient(ellipse 120% 90% at 50% 100%, #3B2B52, #241B33)", color: P.cremeText }}
-      >
-        <div style={{ flex: 1, width: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
-        <div style={{ width: "min(500px,100%)", textAlign: "center", margin: "auto", padding: "40px 24px 190px" }}>
-          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldSoft, fontWeight: 700 }}>O SINAL CERTO SILENCIA O GRITO</div>
-          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 22, color: "#E4D9F0", marginTop: 14 }}>
-            Alarme não se desliga com esforço. <span style={{ color: P.goldSoft }}>Desliga com sinal.</span>
+          {/* Micro-CTA scroll */}
+          <div data-anim style={{ opacity: 0, marginTop: 14, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <div className="rdp-bob" style={{ fontSize: 10, color: P.goldSoft, fontWeight: 600, letterSpacing: 1 }}>↓</div>
           </div>
-          <div style={{ position: "relative", marginTop: 28, textAlign: "left" }}>
-            <div data-circuit style={{ position: "absolute", left: 29, top: 24, width: 2, height: 0, background: "linear-gradient(180deg,#E4C878,rgba(228,200,120,.2))", boxShadow: "0 0 14px rgba(228,200,120,.7)" }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {boxes.map((box, i) => (
-                <div key={i} data-anim style={{ opacity: 0, display: "flex", gap: 14, alignItems: "flex-start", position: "relative" }}>
-                  <div style={{ flex: "none", width: 60, height: 60, borderRadius: "50%", background: "radial-gradient(circle,#463463,#31254A)", border: "1px solid rgba(228,200,120,.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, boxShadow: "0 0 26px rgba(228,200,120,.15)" }}>{box.icone}</div>
-                  <div style={{ flex: 1, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 16, padding: "16px 18px" }}>
-                    <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 21, fontWeight: 600, color: P.goldSoft }}>{box.titulo}</div>
-                    <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#C9BCDB", marginTop: 7 }}>{box.textoCurto}</div>
+
+          {/* Boxes corpo/mente/espírito */}
+          <div style={{ position: "relative", marginTop: 16, textAlign: "left" }}>
+            <div data-circuit style={{ position: "absolute", left: 24, top: 20, width: 2, height: 0, background: "linear-gradient(180deg,#E4C878,rgba(228,200,120,.2))", boxShadow: "0 0 14px rgba(228,200,120,.7)" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {shared.boxes.map((box, i) => (
+                <div key={i} data-anim style={{ opacity: 0, display: "flex", gap: 12, alignItems: "flex-start", position: "relative" }}>
+                  <div style={{ flex: "none", width: 50, height: 50, borderRadius: "50%", background: "radial-gradient(circle,#463463,#31254A)", border: "1px solid rgba(228,200,120,.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, boxShadow: "0 0 26px rgba(228,200,120,.15)" }}>{box.icone}</div>
+                  <div style={{ flex: 1, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 14, padding: "12px 14px" }}>
+                    <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, fontWeight: 600, color: P.goldSoft, letterSpacing: 1 }}>{box.titulo}</div>
+                    <div style={{ fontSize: 12, lineHeight: 1.55, color: "#C4B7D8", marginTop: 2 }}>{box.texto}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-          <div data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 20, color: "#E4D9F0", marginTop: 26 }}>
-            Tem um nome pra isso: <span style={{ color: P.goldSoft }}>Neurofé.</span>
+
+          <Html data-anim html={shared.union} style={{ opacity: 0, fontSize: 13.5, lineHeight: 1.5, color: "#E4D9F0", marginTop: 16 }} />
+          <div data-anim style={{ opacity: 0, marginTop: 18 }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 11, letterSpacing: 1, color: "#A99CC0", textTransform: "uppercase" }}>Tem um nome pra isso</div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 32, letterSpacing: 4, color: P.goldSoft, marginTop: 2 }}>NEUROFÉ</div>
           </div>
         </div>
         </div>
+        {/* Micro-CTA lateral — seta pulsante slide 1 */}
+        <div style={{
+          display: cur === 1 ? "flex" : "none",
+          position: "absolute", right: 6, top: "28%", height: "45%",
+          flexDirection: "column", alignItems: "center", justifyContent: "center",
+          zIndex: 30, pointerEvents: "none",
+        }}>
+          <div style={{
+            width: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+            animation: "sa-arrowPulse 2s ease-in-out infinite",
+          }}>
+            <svg viewBox="0 0 20 40" style={{ width: 20, height: 40, opacity: .45 }}>
+              <path d="M10 0 L10 36 M4 30 L10 38 L16 30" fill="none" stroke={P.goldSoft} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
         <div style={scrimForDark()}>
-          <button data-next className="sa-cta-keep" onClick={() => { if (curRef.current === 2) go(3); }} style={btnDark}>E O QUE MUDA? ▸</button>
+          <button data-next className="sa-cta-keep" onClick={() => { if (curRef.current === 1) go(2); }} style={btnDark}>{shared.cta2}</button>
         </div>
       </div>
 
-      {/* ── CENA 3 · Imagine ── */}
+      {/* ── SLIDE 2 · Transformação ── */}
       <div
-        data-scene="3"
-        style={{ ...sceneBase(3), overflow: "hidden", textAlign: "center" }}
+        data-scene="2"
+        style={{ ...sceneBase(2), overflow: "hidden", textAlign: "center",
+          background: `radial-gradient(ellipse 130% 80% at 50% 110%, rgba(212,175,55,.22), rgba(246,240,228,0) 60%), linear-gradient(180deg,${P.creme},#F1E9D8)` }}
       >
-        <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", opacity: 0.25 }}>
           <img src={descanso} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", animation: "sa-kenburns 20s ease-out infinite alternate" }} />
         </div>
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(246,240,228,.15) 30%, rgba(246,240,228,.92) 62%, #F6F0E4 82%)" }} />
-        <div style={{ flex: 1, width: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-        <div style={{ position: "relative", width: "min(500px,100%)", margin: "0 auto", padding: "40px 26px 190px", boxSizing: "border-box" }}>
-          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldDeep, fontWeight: 700, textShadow: "0 1px 8px rgba(246,240,228,.9), 0 0 20px rgba(246,240,228,.7)" }}>O QUE MUDA QUANDO VOCÊ SE PERMITE PARAR</div>
-          <h2 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(30px,8vw,38px)", lineHeight: 1.15, color: P.ink, margin: "14px 0 0", textShadow: "0 1px 12px rgba(246,240,228,.95), 0 0 30px rgba(246,240,228,.8)" }}>{n.mudaTitulo}</h2>
-          <div style={{ fontSize: 15.5, lineHeight: 1.75, color: "#4A3D56", marginTop: 16, textShadow: "0 1px 6px rgba(246,240,228,.8)" }}>
-            {mudaWords.map((w, i) => (
-              <span key={i} data-w style={{ opacity: 0 }}>{w + " "}</span>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(246,240,228,.6) 30%, rgba(246,240,228,.95) 62%, #F6F0E4 82%)" }} />
+        <div style={{ flex: 1, width: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column" }}>
+        <div style={{ position: "relative", width: "min(500px,100%)", margin: "auto", padding: "40px 26px 190px", boxSizing: "border-box" }}>
+          <div data-anim style={{ opacity: 0, fontSize: 11, letterSpacing: 4, color: P.goldDeep, fontWeight: 700 }}>O QUE MUDA QUANDO O ALARME BAIXA</div>
+          <h2 data-anim style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: "clamp(27px,7.5vw,34px)", lineHeight: 1.18, color: P.ink, marginTop: 14 }}>{n.mudaHeadline}</h2>
+
+          {/* Cenas */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 20, textAlign: "left" }}>
+            {n.cenas.map((c, i) => (
+              <Html key={i} data-anim html={c} style={{ opacity: 0, fontSize: 15.5, lineHeight: 1.35, color: "#5D5368" }} />
             ))}
           </div>
+
+          {/* Pull-quote: encontra */}
+          <Html data-anim html={n.encontra} style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 24, lineHeight: 1.35, color: P.purple, margin: "24px 0" }} />
+
+          {/* Chip custo */}
+          <Html data-anim html={n.custo} style={{ opacity: 0, background: "linear-gradient(180deg,#FBF7EE,#F4ECDC)", border: "1.5px solid rgba(212,175,55,.5)", borderRadius: 16, padding: "16px 18px", fontSize: 16, lineHeight: 1.5, color: P.ink, textAlign: "left" }} />
+
+          {/* Eco do desejo */}
+          {desireQuote && (
+            <Html data-anim html={`Você disse que queria <b>${desireQuote}.</b><br>É pra lá que a Neurofé te leva.`} style={{ opacity: 0, fontFamily: "'Cormorant Garamond',serif", fontSize: 20, lineHeight: 1.4, color: "#4A3D56", marginTop: 22 }} />
+          )}
         </div>
         </div>
         <div style={scrimForLight()}>
-          <button data-next className="sa-cta-keep" onClick={() => { if (curRef.current === 3) go(4); }} style={{ ...btnDark, background: P.creme, border: `1.5px solid ${P.goldWarm}`, color: P.goldText, boxShadow: "0 8px 24px rgba(90,70,40,.18)" }}>{ctaLabel} ▸</button>
-        </div>
-      </div>
-
-      {/* ── CENA 4 · CTA (→ onContinue) ── */}
-      <div
-        data-scene="4"
-        style={{ ...sceneBase(4), overflowY: "auto", padding: 24, textAlign: "center", background: "radial-gradient(ellipse 130% 80% at 50% 110%, rgba(212,175,55,.28), rgba(246,240,228,0) 60%), #F6F0E4" }}
-      >
-        <div style={{ width: "min(460px,100%)", display: "flex", flexDirection: "column", alignItems: "center", margin: "auto", padding: "40px 0" }}>
-          <div data-anim style={{ opacity: 0, width: "100%", maxWidth: 280, borderRadius: 24, overflow: "hidden", boxShadow: "0 24px 60px rgba(90,70,40,.25)", border: "3px solid rgba(212,175,55,.5)" }}>
-            <img src={jaquelineImg} alt="Jaqueline" style={{ width: "100%", display: "block" }} />
-          </div>
-          <div data-anim style={{ opacity: 0, fontSize: 15.5, lineHeight: 1.7, color: P.ink, marginTop: 30 }} dangerouslySetInnerHTML={{ __html: n.proximoPasso }} />
           <button
             className="sa-cta-keep"
             onClick={onContinue}
-            style={{ ...btnGold, marginTop: 28, fontSize: 15, letterSpacing: 1.5, padding: "19px 44px" }}
+            style={{ ...btnGold, pointerEvents: "auto", fontSize: 13.5, letterSpacing: 1.5, padding: "18px 32px" }}
           >
-            {ctaLabel} →
+            {ctaLabel}
           </button>
-          <div data-anim style={{ opacity: 0, fontSize: 12, color: "#8A7C93", marginTop: 14 }}>Leva 3 minutos · Sem compromisso</div>
+        </div>
+        <div style={{ position: "absolute", bottom: 6, left: 0, right: 0, textAlign: "center", fontSize: 11, color: "#8A7C93", zIndex: 21 }}>
+          Veja como funciona em ~3 minutos
         </div>
       </div>
 
-      {/* voltar */}
+      {/* Voltar */}
       <button
         onClick={() => go(cur - 1)}
         aria-label="Voltar"

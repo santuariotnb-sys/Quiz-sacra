@@ -17,7 +17,7 @@ export function GuideAvatar({
       ? "h-44 w-44 sm:h-48 sm:w-48"
       : size === "chat"
         ? "h-[88px] w-[88px] sm:h-28 sm:w-28"
-        : "h-[60px] w-[60px] sm:h-20 sm:w-20";
+        : "h-[88px] w-[88px] sm:h-28 sm:w-28";
   return (
     <motion.div
       layout

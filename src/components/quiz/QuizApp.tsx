@@ -19,6 +19,13 @@ import {
   type Archetype,
   type ArchetypeData,
 } from "@/data/quiz";
+import {
+  AGE_BANDS,
+  getAgeBand,
+  ALERT_HEADLINES,
+  ALERT_SUBS,
+  ALERT_EMOTIONAL,
+} from "@/data/age-data";
 import { ResultScreen } from "./ResultScreen";
 import { OfferScreen } from "./OfferScreen";
 import { Component, type ErrorInfo } from "react";
@@ -29,6 +36,7 @@ import { captureMetaClickData, getMetaClickData, getOrCreateExternalId, readFbCo
 import { fetchProductPrices, fetchInstallmentFreeCount, formatBRL } from "@/lib/prices";
 import { QUIZ_ID, PIXEL_ID } from "@/lib/quiz-config";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
+import crossBrushSrc from "@/assets/cross-brush.webp";
 import { Check } from "lucide-react";
 
 const KIRVANO_URL =
@@ -43,7 +51,7 @@ const CHECKOUT_SACRA_URL =
   (import.meta.env.VITE_CHECKOUT_SACRA_URL as string | undefined) ||
   "https://rotinadepaz.com.br/checkout";
 
-type Stage = "hero" | "acolhimento" | "questions" | "loading" | "contact" | "result" | "offer";
+type Stage = "hero" | "acolhimento" | "questions" | "age" | "alert" | "loading" | "contact" | "result" | "offer";
 
 // Detecta se alguma resposta marcou risco (P2: "pensamentos sombrios" / "estou em crise").
 function answersHaveRisk(ans: Record<string, string>): boolean {
@@ -151,6 +159,7 @@ export function QuizApp() {
     !!saved && saved.stage === "questions",
   );
   const [name, setName] = useState(saved?.name ?? "");
+  const [age, setAge] = useState(saved?.answers?.["idade"] ?? "");
   const [painPoint, setPainPoint] = useState<string | null>(null);
   const [qIndex, setQIndex] = useState(saved?.qIndex ?? 0);
   const qIndexRef = useRef(qIndex);
@@ -307,6 +316,22 @@ export function QuizApp() {
 
       if (isLast) {
         window.setTimeout(() => setStage("loading"), 200);
+        return;
+      }
+
+      // Intercept: após pergunta 3 (idx=2, key="sintoma") → tela de idade
+      if (idx === 2 && q.key === "sintoma") {
+        setQIndex(idx + 1);
+        window.setTimeout(() => setStage("age"), 200);
+        answeringRef.current = false;
+        return;
+      }
+
+      // Intercept: após pergunta 5 (idx=4, key="frase") → tela de alerta
+      if (idx === 4 && q.key === "frase") {
+        setQIndex(idx + 1);
+        window.setTimeout(() => setStage("alert"), 200);
+        answeringRef.current = false;
         return;
       }
 
@@ -662,6 +687,29 @@ export function QuizApp() {
           />
         )}
 
+        {stage === "age" && (
+          <AgeScreen
+            key="age"
+            age={age}
+            setAge={setAge}
+            onContinue={(ageVal) => {
+              setAge(ageVal);
+              setAnswers((prev) => ({ ...prev, idade: ageVal }));
+              setStage("questions");
+            }}
+          />
+        )}
+
+        {stage === "alert" && (
+          <AlertScreen
+            key="alert"
+            age={age}
+            situacao={answers["situacao"] ?? ""}
+            onContinue={() => setStage("questions")}
+            onBackAge={() => setStage("age")}
+          />
+        )}
+
         {stage === "loading" && (
           <LoadingScreen key="loading" step={loadingMsg} answers={answers} name={name} statCard={loadingStatCard} proof={loadingProof} />
         )}
@@ -670,6 +718,7 @@ export function QuizApp() {
           <ContactGateScreen
             key="contact"
             name={name}
+            setName={setName}
             email={email}
             setEmail={setEmail}
             whatsapp={whatsapp}
@@ -696,6 +745,7 @@ export function QuizApp() {
             key="offer"
             archetype={arche}
             desire={desire}
+            leadName={name}
             priceCents={mainPriceCents}
             anchorCents={mainAnchorCents}
             freeInstCount={freeInstCount}
@@ -717,32 +767,39 @@ function HeroScreen({ onPickPain }: { onPickPain: (p: string) => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-5 py-10 text-center sm:px-6 sm:py-16"
+      className="relative mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center px-5 py-10 text-center sm:px-6 sm:py-16"
     >
-      <div className="flex w-full items-start justify-center gap-3 sm:gap-4">
-        <GuideAvatar size="corner" />
-        <SpeechBubble
-          text="Deus não te chamou pra viver de plantão."
-          typingDelay={400}
-        />
+      {/* Cruz decorativa brush-stroke — removida do fundo, agora inline na headline */}
+
+      <div className="relative z-10 flex w-full flex-col items-center gap-1">
+        <div className="flex w-full items-start justify-center gap-3 sm:gap-4">
+          <GuideAvatar size="corner" />
+          <SpeechBubble
+            text="Deus não te chamou pra viver de plantão."
+            typingDelay={400}
+          />
+        </div>
+        <div className="flex items-center gap-1.5" style={{ marginTop: 2 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#5FA86B", display: "inline-block" }} />
+          <span style={{ fontSize: 11, color: "#7A7185" }}>Jaqueline · online agora</span>
+        </div>
       </div>
 
-      <h1 className="rdp-title-gradient mt-7 text-balance font-display text-[30px] leading-[1.1] tracking-tight sm:mt-8 sm:text-[48px] sm:leading-[1.08]">
-        Existem quatro padrões diferentes de <em className="italic">esgotamento</em> entre mulheres cristãs.
-        <span className="inline-block align-middle ml-2" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="inline-block h-[0.6em] w-[0.6em] stroke-[color:var(--gold-vivid)] drop-shadow-[0_1px_5px_rgba(217,197,165,0.45)]">
-            <path d="M12 5V19M5 12H19" strokeWidth="2.25" strokeLinecap="round" />
-          </svg>
-        </span>
+      <h1 className="rdp-title-gradient relative z-10 mt-7 text-balance font-display text-[30px] leading-[1.1] tracking-tight sm:mt-8 sm:text-[48px] sm:leading-[1.08]">
+        Existem <strong className="font-semibold">4 padrões</strong> diferentes de <em className="italic not-italic" style={{ fontVariant: "normal", textTransform: "uppercase", letterSpacing: "0.04em", fontSize: "0.85em" }}>esgotamento</em> entre mulheres cristãs.
+        <img src={crossBrushSrc} alt="" aria-hidden="true" className="ml-2 inline-block h-[1.6em] w-auto align-middle opacity-40" style={{ mixBlendMode: "multiply", transform: "rotate(-8deg)" }} />
       </h1>
 
       <p className="mt-5 max-w-xl text-balance text-base leading-relaxed text-[color:var(--deep-purple)] sm:mt-6 sm:text-xl">
         E é por isso que a <span className="rounded px-1 bg-[color:var(--gold-vivid)]/35 font-semibold text-[color:var(--deep-purple)]">sua dor não é resolvida</span>, mesmo quando a sua fé é verdadeira.
       </p>
 
-      <p className="mt-8 font-display text-base italic text-[color:var(--amethyst)] sm:mt-10 sm:text-lg">
-        Toque no que mais dói hoje:
-      </p>
+      <div className="mt-8 flex flex-col items-center gap-1.5 sm:mt-10">
+        <p className="font-display text-lg font-semibold italic text-[color:var(--deep-purple)] sm:text-xl">
+          Toque no que mais dói hoje:
+        </p>
+        <span className="rdp-bob text-[color:var(--amethyst)] text-xl" aria-hidden="true">↓</span>
+      </div>
 
       <div className="mt-4 flex w-full max-w-md flex-col gap-3 sm:mt-5">
         {[
@@ -759,11 +816,11 @@ function HeroScreen({ onPickPain }: { onPickPain: (p: string) => void }) {
             transition={{ delay: i * 0.12, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            className="group relative overflow-hidden rounded-2xl border border-[color:var(--lavender)] bg-gradient-to-br from-white via-[color:var(--milk-warm)] to-[color:var(--blush)]/30 px-6 py-4.5 text-left text-base font-medium text-[color:var(--deep-purple)] shadow-[0_8px_24px_-12px_rgba(117,97,127,0.25)] transition-shadow hover:border-[color:var(--amethyst)] hover:shadow-[0_14px_34px_-14px_rgba(117,97,127,0.45)] sm:text-lg"
+            className="rdp-btn-pain group relative overflow-hidden rounded-2xl border border-[color:var(--lavender)] px-6 py-4.5 text-left text-base font-medium text-[color:var(--deep-purple)] shadow-[0_8px_24px_-12px_rgba(117,97,127,0.25)] transition-shadow hover:border-[color:var(--amethyst)] hover:shadow-[0_14px_34px_-14px_rgba(117,97,127,0.45)] sm:text-lg"
           >
             <span className="relative z-10 flex items-center justify-between gap-3">
               {label}
-              <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--deep-purple)]/10 text-[color:var(--deep-purple)] transition-colors group-hover:bg-[color:var(--deep-purple)] group-hover:text-white">
+              <span className="rdp-arrow-pulse inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--deep-purple)]/10 text-[color:var(--deep-purple)] transition-colors group-hover:bg-[color:var(--deep-purple)] group-hover:text-white">
                 →
               </span>
             </span>
@@ -818,27 +875,6 @@ function AcolhimentoScreen({
   setName: (s: string) => void;
   onContinue: () => void;
 }) {
-  const response =
-    (painPoint && PAIN_RESPONSES[painPoint]) || {
-      body: "O que você sente tem nome — e tem saída.",
-      closing: "Vamos descobrir o seu padrão juntas.",
-    };
-
-  const trimmed = name.trim();
-  const touched = name.length > 0;
-  const tooShort = touched && trimmed.length < 2;
-  const tooLong = trimmed.length > 40;
-  const invalidChars = touched && !/^[\p{L}\p{M}\s'’.-]*$/u.test(trimmed);
-  const errorMsg = tooShort
-    ? "Escreva pelo menos 2 letras."
-    : tooLong
-      ? "Nome muito longo (máx. 40 caracteres)."
-      : invalidChars
-        ? "Use apenas letras."
-        : null;
-  const canContinue = trimmed.length >= 2 && !tooLong && !invalidChars;
-  const showValid = canContinue;
-
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
@@ -847,119 +883,89 @@ function AcolhimentoScreen({
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-5 py-12 text-center sm:px-6 sm:py-16"
     >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`copy-${painPoint ?? "default"}`}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full"
-        >
-          <p className="mx-auto max-w-xl text-balance text-base leading-relaxed text-[color:var(--deep-purple)]/90 sm:text-lg">
-            {response.body}
-          </p>
-          <p className="mx-auto mt-6 max-w-xl text-balance font-display text-[22px] italic leading-snug text-[color:var(--deep-purple)] sm:text-[30px]">
-            {response.closing}
-          </p>
-        </motion.div>
-      </AnimatePresence>
-
+      {/* Social proof */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.5 }}
-        className="mt-10 flex w-full items-start justify-center gap-3 sm:gap-4"
+        transition={{ delay: 0.1, duration: 0.4 }}
+        className="mb-8 flex items-center gap-2 rounded-full border border-[color:var(--lavender)]/40 bg-white/60 px-4 py-2 text-sm text-[color:var(--amethyst)]"
       >
-        <GuideAvatar size="corner" />
-        <SpeechBubble
-          text="Antes de darmos nome ao seu padrão, como posso te chamar? Quero falar diretamente com você."
-          resetKey="acolh-name"
-          typingDelay={200}
-        />
+        <span className="inline-block h-2 w-2 rounded-full bg-[color:var(--gold-warm)]" />
+        +120 mulheres já se encontraram
       </motion.div>
 
-      <motion.form
-        initial={{ opacity: 0, y: 10 }}
+      {/* Card principal */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1, duration: 0.5 }}
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (canContinue) onContinue();
-        }}
-        className="mt-6 flex w-full max-w-sm flex-col items-center gap-4"
+        transition={{ delay: 0.25, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full rounded-3xl bg-gradient-to-b from-white via-[color:var(--milk-warm)] to-[color:var(--blush)]/20 p-8 shadow-[0_16px_48px_-16px_rgba(68,58,82,0.15)] sm:p-10"
       >
-        <label htmlFor="acolh-name-input" className="sr-only">
-          Seu primeiro nome
-        </label>
-        <div className="relative w-full">
-          <input
-            id="acolh-name-input"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Seu primeiro nome"
-            autoFocus
-            maxLength={60}
-            aria-invalid={!!errorMsg}
-            aria-describedby="name-feedback"
-            className={`w-full rounded-full border-2 bg-white/80 px-6 py-4 text-center font-body text-base text-[color:var(--deep-purple)] outline-none transition-all placeholder:text-[color:var(--amethyst)]/50 ${
-              errorMsg
-                ? "border-[color:var(--rose-dust)] shadow-[0_0_0_4px_rgba(212,165,181,0.18)]"
-                : showValid
-                  ? "border-[color:var(--gold-warm)] shadow-[0_0_0_4px_rgba(217,197,165,0.28)]"
-                  : "border-[color:var(--border)] focus:border-[color:var(--lavender)] focus:shadow-[0_0_0_4px_rgba(196,168,188,0.2)]"
-            }`}
-          />
-          <AnimatePresence>
-            {showValid && (
-              <motion.span
-                key="check"
-                initial={{ opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.6 }}
-                transition={{ duration: 0.25 }}
-                aria-hidden
-                className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[color:var(--gold-warm)]"
-              >
-                ✓
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </div>
-        <div id="name-feedback" className="min-h-[1.25rem] text-xs" aria-live="polite">
-          <AnimatePresence mode="wait">
-            {errorMsg ? (
-              <motion.p
-                key="err"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="text-[color:var(--rose-dust)]"
-              >
-                {errorMsg}
-              </motion.p>
-            ) : showValid ? (
-              <motion.p
-                key="ok"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="text-[color:var(--amethyst)]"
-              >
-                Prazer, {trimmed.split(" ")[0]}.
-              </motion.p>
-            ) : null}
-          </AnimatePresence>
-        </div>
-        <button
-          type="submit"
-          disabled={!canContinue}
-          className="w-full rounded-full bg-[color:var(--deep-purple)] px-8 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--milk)] shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] transition-all hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-[color:var(--gold-warm)] hover:to-[color:var(--amethyst)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 disabled:hover:bg-[color:var(--deep-purple)]"
+        {/* Eyebrow */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
+          className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--gold-warm)]"
         >
-          Descobrir meu padrão →
-        </button>
-      </motion.form>
+          A dor tem nome
+        </motion.p>
+
+        {/* Headline — apontar o inimigo */}
+        <motion.h2
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65, duration: 0.5 }}
+          className="mt-4 font-display text-[24px] font-bold leading-tight text-[color:var(--deep-purple)] sm:text-[32px]"
+        >
+          O inimigo não é a sua falta de fé.
+        </motion.h2>
+
+        {/* Sub-headline — acento dourado */}
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.85, duration: 0.5 }}
+          className="mt-3 font-display text-[20px] font-bold leading-snug text-[color:var(--gold-warm)] sm:text-[26px]"
+        >
+          É o alarme da ansiedade e os sintomas do estresse.
+        </motion.p>
+
+        {/* Body */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.1, duration: 0.5 }}
+          className="mt-5 text-balance text-base leading-relaxed text-[color:var(--deep-purple)]/80 sm:text-lg"
+        >
+          Quando seu corpo vive em alerta, a mente não silencia, a oração fica pesada e a culpa começa a falar mais alto.
+        </motion.p>
+
+        {/* CTA */}
+        <motion.button
+          type="button"
+          onClick={onContinue}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.4, duration: 0.5 }}
+          whileHover={{ scale: 1.02, y: -2 }}
+          whileTap={{ scale: 0.98 }}
+          className="rdp-gradient-cta mt-8 w-full rounded-full px-8 py-4.5 text-sm font-bold uppercase tracking-[0.14em] text-white shadow-[0_18px_44px_-16px_rgba(201,168,118,0.55)]"
+          style={{ animation: "rdp-cta-pulse 2.5s ease-in-out infinite" }}
+        >
+          Entendi. Quero descobrir meu padrão <Check className="ml-1 inline-block h-4 w-4" />
+        </motion.button>
+      </motion.div>
+
+      {/* Sub-CTA */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.7, duration: 0.4 }}
+        className="mt-5 text-sm text-[color:var(--amethyst)]/70"
+      >
+        O quiz vai apontar qual padrão está drenando sua paz hoje.
+      </motion.p>
     </motion.section>
   );
 }
@@ -1234,15 +1240,15 @@ function LoadingScreen({ step, answers, name, statCard, proof }: { step: number;
               <li
                 key={i}
                 className={`flex items-start gap-2.5 font-display text-sm italic transition-all duration-500 ${
-                  done ? "text-[color:rgba(232,201,160,0.85)]" : "text-white/15"
+                  done ? "text-white/90" : "text-white/15"
                 }`}
               >
                 {/* Checkmark animado */}
                 <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-all duration-500 ${
-                  done ? "bg-[color:rgba(232,201,160,0.25)]" : "bg-white/5"
+                  done ? "bg-white/20" : "bg-white/5"
                 }`}>
                   {done && (
-                    <Check className="h-2.5 w-2.5 text-[color:rgba(232,201,160,0.9)]" strokeWidth={3} />
+                    <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
                   )}
                 </span>
                 <span>
@@ -1259,35 +1265,20 @@ function LoadingScreen({ step, answers, name, statCard, proof }: { step: number;
           })}
         </ul>
 
-        {/* G4-v2: Micro-recompensa — card de estatística real, depois prova social WhatsApp */}
+        {/* G4-v2: Micro-recompensa — card de estatística real */}
         <AnimatePresence mode="wait">
-          {statCard && statText && proof === 0 && (
+          {statCard && statText && (
             <motion.div
               key="stat"
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.5, ease: [0.2, 0.7, 0.2, 1] }}
-              className="mx-4 mt-5 max-w-sm rounded-xl border border-[color:rgba(232,201,160,0.2)] bg-white/5 px-5 py-4 text-center backdrop-blur-sm"
+              className="mx-4 mt-5 max-w-sm rounded-xl border border-white/15 bg-white/5 px-5 py-4 text-center backdrop-blur-sm"
             >
-              <p className="font-display text-[13px] italic leading-relaxed text-[color:rgba(232,201,160,0.9)]">
+              <p className="font-display text-[13px] italic leading-relaxed text-white/85">
                 {statText}
               </p>
-            </motion.div>
-          )}
-          {proof > 0 && (
-            <motion.div
-              key="proof"
-              initial={{ opacity: 0, y: 12, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.5, ease: [0.2, 0.7, 0.2, 1] }}
-              className="mx-4 mt-5 flex w-full max-w-sm flex-col items-center gap-2"
-            >
-              <p className="font-display text-[12px] italic text-[color:rgba(232,201,160,0.85)]">
-                Mulheres que descobriram o padrão delas:
-              </p>
-              <WhatsProofCard visible={proof} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1308,6 +1299,7 @@ const SHOW_WHATSAPP = false;
 
 function ContactGateScreen({
   name,
+  setName,
   email,
   setEmail,
   whatsapp,
@@ -1317,6 +1309,7 @@ function ContactGateScreen({
   sending,
 }: {
   name: string;
+  setName: (s: string) => void;
   email: string;
   setEmail: (s: string) => void;
   whatsapp: string;
@@ -1327,12 +1320,19 @@ function ContactGateScreen({
 }) {
   const [hint, setHint] = useState(false);
   const whatsappRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
   const whatsDigits = whatsapp.replace(/\D/g, "");
   const validWhatsapp = whatsDigits.length >= 10;
+  const validName = name.trim().length >= 2;
 
   const handleSubmit = () => {
+    if (!validName) {
+      nameRef.current?.focus();
+      return;
+    }
     if (!validWhatsapp) {
       setHint(true);
+      whatsappRef.current?.focus();
       return;
     }
     setHint(false);
@@ -1352,7 +1352,7 @@ function ContactGateScreen({
         <GuideAvatar size="corner" />
         <div className="min-w-0 flex-1 pt-1">
           <SpeechBubble
-            text={`Seu resultado está pronto${name ? `, ${name}` : ""}.`}
+            text="Seu resultado está pronto."
             typingDelay={300}
           />
         </div>
@@ -1366,10 +1366,10 @@ function ContactGateScreen({
         transition={{ delay: 0.3, duration: 0.6, ease: [0.2, 0.7, 0.2, 1] }}
       >
         <p className="font-display text-xl leading-snug text-[color:var(--deep-purple)]">
-          Quer receber sua leitura completa no WhatsApp?
+          Antes de revelar, como posso te chamar?
         </p>
         <p className="mt-2 text-sm leading-relaxed text-[color:var(--amethyst)]">
-          Te mando direto no seu número — pra reler quando a ansiedade apertar.
+          Quero falar com você pelo nome — e te mandar o resultado no WhatsApp pra reler quando a ansiedade apertar.
         </p>
 
         <form
@@ -1377,59 +1377,85 @@ function ContactGateScreen({
             e.preventDefault();
             if (!sending) handleSubmit();
           }}
-          className="mt-5"
+          className="mt-5 flex flex-col gap-3"
         >
-          <input
-            id="gate-whatsapp"
-            ref={whatsappRef}
-            type="tel"
-            inputMode="numeric"
-            value={whatsapp}
-            onChange={(e) => {
-              const el = e.target;
-              const cursor = el.selectionStart ?? el.value.length;
-              const prevLen = whatsapp.length;
-              const digits = el.value.replace(/\D/g, "").slice(0, 11);
-              const fmt = digits.length > 6
-                ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
-                : digits.length > 2
-                  ? `(${digits.slice(0, 2)}) ${digits.slice(2)}`
-                  : digits;
-              setWhatsapp(fmt);
-              setHint(false);
-              // Preserve cursor position after React re-render
-              requestAnimationFrame(() => {
-                if (whatsappRef.current) {
-                  const newCursor = Math.max(0, cursor + (fmt.length - prevLen));
-                  whatsappRef.current.setSelectionRange(newCursor, newCursor);
-                }
-              });
-            }}
-            placeholder="(00) 00000-0000"
-            className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
-              hint ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
-            }`}
-            maxLength={15}
-            autoComplete="tel"
-          />
-          {hint && (
-            <p className="mt-1.5 text-xs text-red-400">
-              Digite seu WhatsApp pra eu te enviar.
-            </p>
-          )}
+          {/* Nome */}
+          <div>
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <span className="text-xs font-medium text-[color:var(--amethyst)]">Seu primeiro nome</span>
+              <span className="rdp-bob text-[10px] text-[color:var(--gold-warm)]" aria-hidden>↓</span>
+            </div>
+            <input
+              ref={nameRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: Ana"
+              autoFocus
+              maxLength={40}
+              className="w-full rounded-full border border-[color:var(--border)] bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:border-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20"
+            />
+          </div>
+
+          {/* WhatsApp */}
+          <div>
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <span className="text-xs font-medium text-[color:var(--amethyst)]">WhatsApp</span>
+              <span className="text-[10px] text-[color:var(--gold-warm)]" aria-hidden>— receba seu diagnóstico</span>
+            </div>
+            <input
+              id="gate-whatsapp"
+              ref={whatsappRef}
+              type="tel"
+              inputMode="numeric"
+              value={whatsapp}
+              onChange={(e) => {
+                const el = e.target;
+                const cursor = el.selectionStart ?? el.value.length;
+                const prevLen = whatsapp.length;
+                const digits = el.value.replace(/\D/g, "").slice(0, 11);
+                const fmt = digits.length > 6
+                  ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+                  : digits.length > 2
+                    ? `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+                    : digits;
+                setWhatsapp(fmt);
+                setHint(false);
+                requestAnimationFrame(() => {
+                  if (whatsappRef.current) {
+                    const newCursor = Math.max(0, cursor + (fmt.length - prevLen));
+                    whatsappRef.current.setSelectionRange(newCursor, newCursor);
+                  }
+                });
+              }}
+              placeholder="(00) 00000-0000"
+              className={`w-full rounded-full border bg-[color:var(--milk-warm)] px-5 py-3.5 text-sm text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)] focus:outline-none focus:ring-4 focus:ring-[color:var(--lavender)]/20 ${
+                hint ? "border-red-300 focus:border-red-300" : "border-[color:var(--border)] focus:border-[color:var(--lavender)]"
+              }`}
+              maxLength={15}
+              autoComplete="tel"
+            />
+            {hint && (
+              <p className="mt-1.5 text-xs text-red-400">
+                Digite seu WhatsApp pra eu te enviar.
+              </p>
+            )}
+          </div>
 
           {/* CTA principal */}
-          <button
+          <motion.button
             type="submit"
             disabled={sending}
-            className="rdp-btn-gradient-hover mt-4 inline-flex w-full items-center justify-center gap-2.5 rounded-full px-10 py-4 text-sm font-medium uppercase tracking-[0.18em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] disabled:opacity-50"
+            whileHover={{ scale: 1.02, y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            className="rdp-btn-gradient-hover mt-2 inline-flex w-full items-center justify-center gap-2.5 rounded-full px-10 py-4.5 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_18px_40px_-18px_rgba(68,58,82,0.6)] disabled:opacity-50"
           >
-            {sending ? "Enviando…" : "Quero receber e ver"}{" "}
-            <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
-          </button>
+            {sending ? "Revelando…" : "Revelar meu diagnóstico"}{" "}
+            <span aria-hidden className="rdp-arrow-pulse">→</span>
+          </motion.button>
         </form>
 
-        {/* Micro-CTA: pular */}
+        {/* Pular */}
         <button
           type="button"
           onClick={onSkip}
@@ -1437,6 +1463,284 @@ function ContactGateScreen({
           className="mt-4 w-full text-center text-[13px] text-[color:var(--amethyst)] transition-colors hover:text-[color:var(--deep-purple)] disabled:opacity-50"
         >
           Só ver na tela
+        </button>
+      </motion.div>
+
+      {/* Micro-CTA segurança */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="mt-4 text-center text-xs text-[color:var(--amethyst)]/60"
+      >
+        Seus dados ficam seguros. Nada é compartilhado.
+      </motion.p>
+    </motion.section>
+  );
+}
+
+/* ============================== AGE SCREEN ============================== */
+
+function AgeScreen({
+  age,
+  setAge,
+  onContinue,
+}: {
+  age: string;
+  setAge: (s: string) => void;
+  onContinue: (age: string) => void;
+}) {
+  const [error, setError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = () => {
+    const num = parseInt(age, 10);
+    if (!age || isNaN(num) || num < 18 || num > 99) {
+      setError("Digite uma idade entre 18 e 99.");
+      inputRef.current?.focus();
+      return;
+    }
+    setError("");
+    onContinue(age);
+  };
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-5 py-12 text-center"
+    >
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--gold-warm)]"
+      >
+        Sua idade
+      </motion.p>
+
+      <motion.h2
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+        className="mt-4 font-display text-[28px] font-bold leading-tight text-[color:var(--deep-purple)] sm:text-[36px]"
+      >
+        Qual é a sua idade?
+      </motion.h2>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.35 }}
+        className="mt-4 max-w-sm text-balance text-base leading-relaxed text-[color:var(--amethyst)]"
+      >
+        Sua idade ajuda a contextualizar os dados reais que você verá na próxima etapa. O objetivo não é só diagnosticar, é mostrar que esse alarme interno tem nome.
+      </motion.p>
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.5, duration: 0.4 }}
+        className="mt-8"
+      >
+        <input
+          ref={inputRef}
+          type="number"
+          inputMode="numeric"
+          min={18}
+          max={99}
+          value={age}
+          onChange={(e) => { setAge(e.target.value); setError(""); }}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+          placeholder="00"
+          autoFocus
+          className="w-28 rounded-2xl border border-[color:var(--border)] bg-white px-4 py-5 text-center font-display text-[40px] font-bold text-[color:var(--deep-purple)] placeholder:text-[color:var(--lavender)]/40 focus:border-[color:var(--gold-warm)] focus:outline-none focus:ring-4 focus:ring-[color:var(--gold-warm)]/20"
+        />
+        {error && (
+          <p className="mt-2 text-xs text-red-400">{error}</p>
+        )}
+      </motion.div>
+
+      <motion.button
+        type="button"
+        onClick={handleSubmit}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.65, duration: 0.4 }}
+        whileHover={{ scale: 1.02, y: -2 }}
+        whileTap={{ scale: 0.98 }}
+        className="rdp-gradient-cta mt-8 rounded-full px-10 py-4.5 text-sm font-bold uppercase tracking-[0.14em] text-white shadow-[0_18px_44px_-16px_rgba(201,168,118,0.55)]"
+      >
+        Continuar →
+      </motion.button>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="mt-5 max-w-xs text-xs leading-relaxed text-[color:var(--amethyst)]/60"
+      >
+        Na próxima tela, você verá uma leitura curta com dados reais para aquecer sua consciência antes de continuar.
+      </motion.p>
+    </motion.section>
+  );
+}
+
+/* ============================== ALERT SCREEN ============================== */
+
+function AlertScreen({
+  age,
+  situacao,
+  onContinue,
+  onBackAge,
+}: {
+  age: string;
+  situacao: string;
+  onContinue: () => void;
+  onBackAge: () => void;
+}) {
+  const numAge = parseInt(age, 10) || 33;
+  const band = getAgeBand(numAge);
+  const bandData = AGE_BANDS[band];
+  const headline = ALERT_HEADLINES[situacao] ?? ALERT_HEADLINES["casada-filhos-pequenos"];
+  const sub = ALERT_SUBS[situacao] ?? ALERT_SUBS["casada-filhos-pequenos"];
+  const emotional = ALERT_EMOTIONAL[situacao] ?? ALERT_EMOTIONAL["casada-filhos-pequenos"];
+
+  const bars = [
+    { label: "Ansiedade na sua faixa etária", value: bandData.ansiedade },
+    { label: "Sintomas depressivos na sua faixa", value: bandData.depressao },
+    { label: "Mães em sobrecarga silenciosa", value: bandData.sobrecarga },
+  ];
+
+  return (
+    <motion.section
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      className="mx-auto flex min-h-dvh max-w-lg flex-col items-center px-4 pb-40 pt-0"
+    >
+      {/* Banner topo */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.4 }}
+        className="rdp-alert-banner w-full rounded-b-2xl px-5 py-4 text-center"
+      >
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/90">
+          ⚠ Alerta: O inimigo foi nomeado
+        </p>
+      </motion.div>
+
+      {/* Headline */}
+      <motion.h2
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className="mt-7 px-2 text-center font-display text-[22px] font-bold leading-tight text-[color:var(--deep-purple)] sm:text-[28px]"
+      >
+        {headline}
+      </motion.h2>
+
+      {/* Sub */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="mt-3 px-2 text-center text-sm leading-relaxed text-[color:var(--amethyst)]"
+      >
+        {sub}
+      </motion.p>
+
+      {/* Faixa badge */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.65 }}
+        className="mt-5 inline-flex items-center gap-2 rounded-full bg-[color:var(--milk-warm)] px-4 py-2 text-sm text-[color:var(--deep-purple)]"
+      >
+        <span className="font-bold">{numAge} anos</span>
+        <span className="text-[color:var(--amethyst)]">·</span>
+        <span>{bandData.label}</span>
+      </motion.div>
+
+      {/* Card dados — barras animadas */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8, duration: 0.5 }}
+        className="mt-6 w-full rounded-2xl border border-[color:var(--border)] bg-white p-5 shadow-sm"
+      >
+        <div className="space-y-4">
+          {bars.map((bar, i) => (
+            <div key={bar.label}>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="text-xs text-[color:var(--amethyst)]">{bar.label}</span>
+                <span className="text-xs font-bold text-[color:var(--deep-purple)]">{bar.value}%</span>
+              </div>
+              <div className="h-3 w-full overflow-hidden rounded-full bg-[color:var(--milk-warm)]">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${bar.value}%` }}
+                  transition={{ delay: 1.0 + i * 0.2, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                  className="rdp-alert-bar h-full rounded-full"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Bloco emocional */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.6, duration: 0.5 }}
+        className="mt-6 w-full rounded-2xl border border-[color:var(--gold-warm)]/30 bg-gradient-to-b from-[color:var(--milk-warm)] to-white p-5"
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[color:var(--gold-warm)]">
+          O que isso tem causado dentro da sua casa?
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-[color:var(--deep-purple)]/80">
+          {emotional}
+        </p>
+      </motion.div>
+
+      {/* Disclaimer */}
+      <p className="mt-6 text-center text-[10px] leading-relaxed text-[color:var(--amethyst)]/50">
+        Fontes: CDC/NCHS 2022 · Pew Research 2023. Não substitui avaliação médica.
+      </p>
+
+      {/* CTA fixo bottom */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 2.0, duration: 0.4 }}
+        style={{
+          position: "fixed", insetInline: 0, bottom: 0, zIndex: 40,
+          background: "linear-gradient(180deg, rgba(246,240,228,0), rgba(246,240,228,.95) 30%, #F6F0E4 60%)",
+          padding: "28px 20px calc(16px + env(safe-area-inset-bottom))",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+        }}
+      >
+        <motion.button
+          type="button"
+          onClick={onContinue}
+          whileHover={{ scale: 1.02, y: -2 }}
+          whileTap={{ scale: 0.98 }}
+          className="rdp-gradient-cta w-full max-w-md rounded-full px-8 py-4.5 text-sm font-bold uppercase tracking-[0.14em] text-white shadow-[0_18px_44px_-16px_rgba(201,168,118,0.55)]"
+          style={{ animation: "rdp-cta-pulse 2.5s ease-in-out infinite" }}
+        >
+          Continuar o quiz →
+        </motion.button>
+        <button
+          type="button"
+          onClick={onBackAge}
+          className="text-xs text-[color:var(--amethyst)] transition-colors hover:text-[color:var(--deep-purple)]"
+        >
+          ← Rever minha idade
         </button>
       </motion.div>
     </motion.section>
