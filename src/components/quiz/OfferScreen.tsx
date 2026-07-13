@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { motion, AnimatePresence } from "framer-motion";
 import { NEUROFE_OFFER, DESIRE_CTA, DESIRE_QUOTE, OFFER_HEADLINE, type ArchetypeData } from "@/data/quiz";
 import { formatBRL } from "@/lib/prices";
+import { trackVslEvent } from "@/lib/tracking";
 import logoImg from "@/assets/logo.webp";
 import jaquelinePoster from "@/assets/jaqueline.webp";
 import vol1Img from "@/assets/vol1-despertar.webp";
@@ -105,6 +106,7 @@ function VSLPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [muted, setMuted] = useState(true);
+  const [videoError, setVideoError] = useState(false);
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -128,6 +130,30 @@ function VSLPlayer() {
     v.play().catch(() => {});
   }, []);
 
+  // Impressão: VSL entrou em viewport (denominador do hook rate)
+  const impressionRef = useRef(false);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting && !impressionRef.current) {
+            impressionRef.current = true;
+            void trackVslEvent("impression", { videoId: VIDEO_ID, duration: videoRef.current?.duration || null });
+          }
+        });
+      },
+      { threshold: 0.5 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // Ponto (currentTime) em que a usuária deu som — base do "hook" de 3s audíveis
+  const unmuteAtRef = useRef<number | null>(null);
+  const hookRef = useRef(false);
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -145,6 +171,7 @@ function VSLPlayer() {
       if (completedRef.current) return;
       completedRef.current = true;
       pushVslEvent("VSLComplete", { video_id: VIDEO_ID, video_percent: 100 });
+      void trackVslEvent("complete", { videoId: VIDEO_ID, percent: 100, currentTime: v.currentTime || 0, duration: v.duration || 0, muted: v.muted, rate: v.playbackRate });
     };
     const onSeeked = () => {
       if ((v.currentTime || 0) < 1.5) {
@@ -160,11 +187,16 @@ function VSLPlayer() {
       setDuration(d);
       const p = Math.min(100, (c / d) * 100);
       setProgress(p);
-      [25, 50, 75, 100].forEach((m) => {
-        const threshold = m === 100 ? 99 : m;
-        if (p >= threshold && !firedRef.current[m]) {
+      // Hook: 3s de playback AUDÍVEL após o unmute (estilo VTurb 3s-view)
+      if (!hookRef.current && unmuteAtRef.current != null && !v.muted && c - unmuteAtRef.current >= 3) {
+        hookRef.current = true;
+        void trackVslEvent("hook", { videoId: VIDEO_ID, currentTime: c, duration: d, muted: false, rate: v.playbackRate });
+      }
+      [25, 50, 75, 95].forEach((m) => {
+        if (p >= m && !firedRef.current[m]) {
           firedRef.current[m] = true;
           pushVslEvent("VSLProgress", { video_id: VIDEO_ID, video_percent: m, video_current_time: c, video_duration: d });
+          void trackVslEvent("progress", { videoId: VIDEO_ID, percent: m, currentTime: c, duration: d, muted: v.muted, rate: v.playbackRate });
         }
       });
     };
@@ -197,7 +229,9 @@ function VSLPlayer() {
     v.play().catch(() => {});
     if (!unmutedRef.current) {
       unmutedRef.current = true;
+      unmuteAtRef.current = v.currentTime || 0;
       pushVslEvent("VSLUnmute", { video_id: VIDEO_ID, video_percent: Math.round(progress) });
+      void trackVslEvent("play", { videoId: VIDEO_ID, percent: Math.round(progress), currentTime: v.currentTime || 0, duration: v.duration || 0, muted: false, rate: v.playbackRate });
     }
   };
 
@@ -303,6 +337,7 @@ function VSLPlayer() {
           autoPlay
           muted
           preload="auto"
+          onError={() => setVideoError(true)}
           onClick={() => {
             if (muted) { activate(); return; }
             showControls();
@@ -310,6 +345,30 @@ function VSLPlayer() {
           }}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }}
         />
+
+        {videoError && (
+          <div
+            style={{
+              position: "absolute", inset: 0, zIndex: 3,
+              display: "grid", placeItems: "center", textAlign: "center",
+              background: "rgba(0,0,0,.72)", color: "#fff", padding: 24,
+            }}
+          >
+            <div>
+              <p style={{ fontWeight: 600, marginBottom: 10 }}>Não foi possível carregar o vídeo.</p>
+              <button
+                type="button"
+                onClick={() => { setVideoError(false); videoRef.current?.load(); }}
+                style={{
+                  borderRadius: 999, background: "rgba(240,74,74,.95)", color: "#fff",
+                  border: "none", padding: "10px 22px", cursor: "pointer", fontWeight: 600,
+                }}
+              >
+                Tocar novamente
+              </button>
+            </div>
+          </div>
+        )}
 
         {muted && (
           <button
@@ -582,7 +641,6 @@ function VolumesLoop() {
           <figure key={i} style={{
             width: 240, flex: "none", overflow: "hidden", borderRadius: 16, margin: 0,
             border: "1px solid rgba(212,175,55,.25)", background: "#fff",
-            boxShadow: "0 4px 16px rgba(90,70,40,.06)",
             boxShadow: "0 12px 30px rgba(90,70,40,.12)",
           }}>
             <div style={{ width: "100%", aspectRatio: v.square ? "1" : "4/5", overflow: "hidden" }}>
@@ -769,6 +827,17 @@ export function OfferScreen({
   const firstName = leadName?.trim().split(/\s+/)[0] || "";
   const offerH = OFFER_HEADLINE[archetype.name] ?? OFFER_HEADLINE["SOBRECARGA"];
 
+  // CTA: clique no checkout (correlaciona assistiu→converteu) + visualização do CTA
+  const ctaClickedRef = useRef(false);
+  const ctaViewedRef = useRef(false);
+  const handleCheckout = () => {
+    if (!ctaClickedRef.current) {
+      ctaClickedRef.current = true;
+      void trackVslEvent("cta_click", { videoId: VIDEO_ID });
+    }
+    onCheckout();
+  };
+
   // Sticky bar só aparece após scroll past depoimentos
   const shotsEndRef = useRef<HTMLDivElement>(null);
   const [showBar, setShowBar] = useState(false);
@@ -776,7 +845,15 @@ export function OfferScreen({
     const el = shotsEndRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setShowBar(true); },
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShowBar(true);
+          if (!ctaViewedRef.current) {
+            ctaViewedRef.current = true;
+            void trackVslEvent("cta_view", { videoId: VIDEO_ID });
+          }
+        }
+      },
       { threshold: 0.1 },
     );
     io.observe(el);
@@ -1161,7 +1238,7 @@ export function OfferScreen({
             {/* CTA */}
             <button
               type="button"
-              onClick={onCheckout}
+              onClick={handleCheckout}
               aria-label={ctaLabel}
               className="sa-cta-keep"
               style={{
@@ -1260,7 +1337,7 @@ export function OfferScreen({
           </div>
           <button
             type="button"
-            onClick={onCheckout}
+            onClick={handleCheckout}
             aria-label={ctaLabel}
             className="sa-cta-keep"
             style={{
@@ -1324,7 +1401,7 @@ export function OfferScreen({
           </div>
           <button
             type="button"
-            onClick={onCheckout}
+            onClick={handleCheckout}
             aria-label={ctaLabel}
             style={{
               flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 8,

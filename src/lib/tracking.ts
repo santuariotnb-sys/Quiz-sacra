@@ -245,3 +245,44 @@ export function trackInitiateCheckout(
     setTimeout(resolve, 300);
   });
 }
+
+/**
+ * Analytics da mini-VSL (estilo VTurb) → RPC track_vsl_event.
+ * Cada evento carrega o external_id (eixo de correlação do funil).
+ * is_test = true fora do domínio de produção (QA filtrável no admin).
+ */
+export async function trackVslEvent(
+  event: "impression" | "play" | "hook" | "progress" | "complete" | "cta_view" | "cta_click",
+  opts: {
+    videoId?: string;
+    percent?: number | null;
+    currentTime?: number | null;
+    duration?: number | null;
+    muted?: boolean | null;
+    rate?: number | null;
+  } = {},
+): Promise<void> {
+  try {
+    const sb = getSupabase();
+    if (!sb) return;
+    const onProd =
+      typeof window !== "undefined" &&
+      (window.location.hostname === "rotinadepaz.com.br" ||
+        window.location.hostname === "sacra.rotinadepaz.com.br");
+    await sb.rpc("track_vsl_event", {
+      p_session_id: getOrCreateExternalId(),
+      p_event: event,
+      p_video_id: opts.videoId ?? null,
+      p_percent: opts.percent ?? null,
+      p_current_time: opts.currentTime ?? null,
+      p_duration: opts.duration ?? null,
+      p_muted: opts.muted ?? null,
+      p_playback_rate: opts.rate ?? null,
+      p_quiz_id: QUIZ_ID,
+      p_version: "v2-resultado",
+      p_is_test: !onProd,
+    });
+  } catch {
+    /* noop */
+  }
+}

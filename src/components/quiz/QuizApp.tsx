@@ -1766,13 +1766,16 @@ class QuizErrorBoundary extends Component<
         <div className="flex min-h-dvh items-center justify-center bg-[color:var(--milk)] p-8 text-center">
           <div>
             <p className="font-display text-xl text-[color:var(--deep-purple)]">
-              Carregando seu resultado...
+              Tivemos um probleminha ao carregar esta tela.
+            </p>
+            <p className="mt-1 text-sm text-[color:var(--deep-purple)]/70">
+              Toque abaixo para recarregar — seu progresso fica salvo.
             </p>
             <button
-              onClick={() => this.setState({ hasError: false })}
+              onClick={() => window.location.reload()}
               className="mt-4 rounded-full bg-[color:var(--gold-warm)] px-6 py-3 text-sm font-medium text-white"
             >
-              Continuar
+              Recarregar
             </button>
           </div>
         </div>
