@@ -626,12 +626,15 @@ export function QuizApp() {
     // InitiateCheckout com tick de espera para o beacon sair antes do redirect.
     // Passa em/ph quando houver (caminho com-contato) p/ enriquecer o advanced matching;
     // sem-contato ainda semeia external_id (ganho de EMQ vs. IC anônimo anterior).
-    const whatsappNorm = whatsapp ? `55${whatsapp.replace(/\D/g, "")}` : undefined;
+    const waDigits = whatsapp.replace(/\D/g, "");
+    const whatsappNorm = whatsapp ? `55${waDigits}` : undefined;
     await trackInitiateCheckout(externalId, {
       contentName: "Rotina de Paz",
       value: mainPriceCents / 100,
       ...(email && email.includes("@") ? { em: email } : {}),
-      ...(whatsappNorm ? { ph: whatsappNorm } : {}),
+      // ph só com telefone válido (>=10 dígitos), espelhando submitContact —
+      // evita mandar "55" de um telefone parcial ao advanced matching do Meta.
+      ...(waDigits.length >= 10 ? { ph: `55${waDigits}` } : {}),
     });
 
     if (USE_CHECKOUT_SACRA) {
