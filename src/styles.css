@@ -101,7 +101,7 @@ input, select, textarea {
   font-size: 10.5px;
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: #8A6A2A;
+  color: #7C5E24;
   display: block;
 }
 .sa-offer-h1 {
@@ -148,7 +148,7 @@ input, select, textarea {
   font-weight: 600;
   font-size: 11px;
   letter-spacing: .5px;
-  color: #8A6A2A;
+  color: #7C5E24;
   background: rgba(255,255,255,.7);
   border: 1px solid rgba(176,138,56,.4);
   border-radius: 99px;
@@ -270,7 +270,7 @@ input, select, textarea {
 .sqhero-progress { width: 100%; max-width: 380px; height: 6px; border-radius: 6px; background: #F0E8F5; margin-bottom: 8px; overflow: hidden; }
 .sqhero-progress-fill { height: 100%; width: 0%; border-radius: 6px; background: linear-gradient(90deg,#5C3D7A 0%,#7B4FA0 30%,#C98DA3 60%,#E8C4D0 100%); animation: sqhero-progress 1.5s ease-out .5s forwards; }
 @keyframes sqhero-progress { to { width: 5%; } }
-.sqhero-status { font-size: 12px; color: #7A6B8A; margin-bottom: 24px; text-align: center; }
+.sqhero-status { font-size: 12px; color: #675A78; margin-bottom: 24px; text-align: center; }
 .sqhero-content { display: flex; flex-direction: column; align-items: flex-start; max-width: 380px; width: 100%; }
 .sqhero-row { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 12px; width: 100%; animation: sqhero-in .4s ease-out both; }
 @keyframes sqhero-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -291,9 +291,9 @@ input, select, textarea {
 .sqhero-bubble-sub { background: #F5F0F8; border: 1px solid #F0E8F5; }
 .sqhero-bubble-sub p { font-size: 14px; color: #4A3A5C; line-height: 1.6; }
 .sqhero-bubble-sub strong { color: #5C3D7A; font-weight: 700; }
-.sqhero-time { font-size: 10px; color: #7A6B8A; margin: 4px 0 24px 72px; animation: sqhero-in .4s ease-out both; }
-.sqhero-online { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #7A6B8A; margin: 4px 0 24px 92px; animation: sqhero-in .4s ease-out both; }
-.sqhero-online-label { color: #2FBF71; font-weight: 700; }
+.sqhero-time { font-size: 10px; color: #675A78; margin: 4px 0 24px 72px; animation: sqhero-in .4s ease-out both; }
+.sqhero-online { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #675A78; margin: 4px 0 24px 92px; animation: sqhero-in .4s ease-out both; }
+.sqhero-online-label { color: #118047; font-weight: 700; }
 .sqhero-online-dot { width: 8px; height: 8px; border-radius: 50%; background: #2FBF71; box-shadow: 0 0 0 0 rgba(47,191,113,.55); animation: sqhero-online-pulse 1.8s ease-out infinite; }
 @keyframes sqhero-online-pulse { 0% { box-shadow: 0 0 0 0 rgba(47,191,113,.55); } 70% { box-shadow: 0 0 0 7px rgba(47,191,113,0); } 100% { box-shadow: 0 0 0 0 rgba(47,191,113,0); } }
 .sqhero-free { font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: #5C3D7A; background: #EFE3F5; padding: 2px 9px; border-radius: 999px; }
@@ -303,8 +303,8 @@ input, select, textarea {
 .sqhero-hero-avatar { width: clamp(80px, 24vw, 96px); height: clamp(80px, 24vw, 96px); border-radius: 50%; object-fit: cover; object-position: center top; border: 3px solid #9B6BB8; box-shadow: 0 6px 22px rgba(92,61,122,.28); flex-shrink: 0; }
 .sqhero-id { display: flex; flex-direction: column; gap: 4px; }
 .sqhero-name { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: #2A1B3D; line-height: 1.1; }
-.sqhero-status2 { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #2FBF71; }
-.sqhero-typing-status { font-size: 13px; font-style: italic; color: #9B6BB8; }
+.sqhero-status2 { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #118047; }
+.sqhero-typing-status { font-size: 13px; font-style: italic; color: #7D5699; }
 .sqhero-thread { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 380px; }
 .sqhero-msg { animation: sqhero-in .4s ease-out both; }
 .sqhero-msg-purple { align-self: flex-start; max-width: 94%; background: #5C3D7A; color: #fff; border-radius: 20px 20px 20px 6px; padding: 15px 20px; }
@@ -337,10 +337,10 @@ input, select, textarea {
 .sqhero-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(201,141,163,.4); background-position: 100% 50%; }
 .sqhero-cta:active { transform: translateY(0); }
 .sqhero-cta .arrow { font-size: 18px; }
-.sqhero-meta { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: #7A6B8A; margin-bottom: 14px; width: 100%; }
+.sqhero-meta { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: #675A78; margin-bottom: 14px; width: 100%; }
 .sqhero-meta .dot { width: 3px; height: 3px; background: #D4A0B0; border-radius: 50%; }
 .sqhero-proof { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px 14px; background: #F5F0F8; border: 1px solid #F0E8F5; border-radius: 30px; }
-.sqhero-proof-text { font-size: 12px; color: #7A6B8A; }
+.sqhero-proof-text { font-size: 12px; color: #675A78; }
 .sqhero-proof-text strong { color: #5C3D7A; font-weight: 700; }
 @media (min-width: 768px) {
   .sqhero { padding: 40px; justify-content: center; }

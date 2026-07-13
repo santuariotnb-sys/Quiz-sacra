@@ -1,5 +1,5 @@
 import { getSupabase } from "./supabase";
-import { QUIZ_ID, EXTERNAL_ID_PREFIX } from "./quiz-config";
+import { QUIZ_ID, EXTERNAL_ID_PREFIX, PIXEL_ID } from "./quiz-config";
 
 // Chave namespaceada por quiz: mesmo origin serve vários quizzes (paths distintos),
 // logo o localStorage colidiria. 'sacra' mantém a chave histórica p/ não regenerar
@@ -204,7 +204,7 @@ export function sendTrackingBeacon(externalId: string): void {
  */
 export function trackInitiateCheckout(
   externalId: string,
-  extras?: { value?: number; contentName?: string },
+  extras?: { value?: number; contentName?: string; em?: string; ph?: string },
 ): Promise<void> {
   return new Promise((resolve) => {
     try {
@@ -219,6 +219,16 @@ export function trackInitiateCheckout(
         resolve();
         return;
       }
+
+      // Advanced matching do IC (EMQ): semeia external_id sempre + em/ph quando houver.
+      // No caminho sem-contato o pixel nunca recebeu external_id no user_data — só o
+      // eventID o carregava (que NÃO é campo de matching). Re-init com { external_id }
+      // adiciona o identificador ao matching sem tocar no eventID (dedup intacto).
+      // em/ph são auto-hasheados pelo pixel; external_id vai cru (padrão Meta).
+      const am: Record<string, string> = { external_id: externalId };
+      if (extras?.em) am.em = extras.em.toLowerCase().trim();
+      if (extras?.ph) am.ph = extras.ph;
+      fbq("init", PIXEL_ID, am);
 
       // eventID por ETAPA: separa o IC do principal, upsell e downsell (que têm valores
       // diferentes) em vez de colapsar tudo num único `ic_<externalId>` deduplicado.

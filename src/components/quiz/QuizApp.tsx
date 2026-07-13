@@ -623,9 +623,16 @@ export function QuizApp() {
     // Camada 2: beacon keepalive — sobrevive ao redirect, não bloqueia
     sendTrackingBeacon(externalId);
     trackStep("cta");
-    // InitiateCheckout com tick de espera para o beacon sair antes do redirect
-    await trackInitiateCheckout(externalId, { contentName: "Rotina de Paz", value: mainPriceCents / 100 });
+    // InitiateCheckout com tick de espera para o beacon sair antes do redirect.
+    // Passa em/ph quando houver (caminho com-contato) p/ enriquecer o advanced matching;
+    // sem-contato ainda semeia external_id (ganho de EMQ vs. IC anônimo anterior).
     const whatsappNorm = whatsapp ? `55${whatsapp.replace(/\D/g, "")}` : undefined;
+    await trackInitiateCheckout(externalId, {
+      contentName: "Rotina de Paz",
+      value: mainPriceCents / 100,
+      ...(email && email.includes("@") ? { em: email } : {}),
+      ...(whatsappNorm ? { ph: whatsappNorm } : {}),
+    });
 
     if (USE_CHECKOUT_SACRA) {
       // Checkout Sacra: mesmos params que a Kirvano recebe + session linkage
