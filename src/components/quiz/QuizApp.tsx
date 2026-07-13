@@ -206,6 +206,10 @@ export function QuizApp() {
   // sb.rpc() returns PostgrestFilterBuilder (thenable, no .catch) — wrap in Promise.resolve
   const trackStep = (stage: string, questionKey?: string) => {
     try {
+      // Domain-guard: só registra o funil em produção — evita poluir quiz_funnel_events
+      // com localhost/preview de branch (mesmo modelo do pushVslEvent/pixel).
+      const h = typeof window !== "undefined" ? window.location.hostname : "";
+      if (h !== "rotinadepaz.com.br" && h !== "sacra.rotinadepaz.com.br") return;
       const sb = getSupabase();
       if (!sb) return;
       void Promise.resolve(sb.rpc("track_quiz_step", {
@@ -1769,7 +1773,7 @@ class QuizErrorBoundary extends Component<
               Tivemos um probleminha ao carregar esta tela.
             </p>
             <p className="mt-1 text-sm text-[color:var(--deep-purple)]/70">
-              Toque abaixo para recarregar — seu progresso fica salvo.
+              Toque abaixo para recarregar — suas respostas estão salvas.
             </p>
             <button
               onClick={() => window.location.reload()}

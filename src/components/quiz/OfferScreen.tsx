@@ -10,12 +10,12 @@ import vol2Img from "@/assets/vol2-repouso.webp";
 import rotinaLogoImg from "@/assets/rotina-de-paz-logo.webp";
 import jaquelineAppImg from "@/assets/jaqueline-app.webp";
 import bonusLouvoresImg from "@/assets/bonus-louvores.webp";
-import waJuliaImg from "@/assets/wa-julia.png";
-import waJaquelineImg from "@/assets/wa-jaqueline.png";
-import waAlarmaImg from "@/assets/wa-alarma.png";
-import waAnaImg from "@/assets/wa-ana.png";
-import waAna2Img from "@/assets/wa-ana2.png";
-import fbCommentsImg from "@/assets/fb-comments.png";
+import waJuliaImg from "@/assets/wa-julia.webp";
+import waJaquelineImg from "@/assets/wa-jaqueline.webp";
+import waAlarmaImg from "@/assets/wa-alarma.webp";
+import waAnaImg from "@/assets/wa-ana.webp";
+import waAna2Img from "@/assets/wa-ana2.webp";
+import fbCommentsImg from "@/assets/fb-comments.webp";
 
 /* ============================================================
  * TELA B — Oferta (Neurofé + melhorias Lovable)
@@ -358,7 +358,19 @@ function VSLPlayer() {
               <p style={{ fontWeight: 600, marginBottom: 10 }}>Não foi possível carregar o vídeo.</p>
               <button
                 type="button"
-                onClick={() => { setVideoError(false); videoRef.current?.load(); }}
+                onClick={() => {
+                  const v = videoRef.current;
+                  const t = v?.currentTime ?? 0;
+                  setVideoError(false);
+                  if (!v) return;
+                  const onData = () => {
+                    try { v.currentTime = t; } catch { /* noop */ }
+                    v.removeEventListener("loadeddata", onData);
+                  };
+                  v.addEventListener("loadeddata", onData);
+                  v.load();
+                  v.play().catch(() => {});
+                }}
                 style={{
                   borderRadius: 999, background: "rgba(240,74,74,.95)", color: "#fff",
                   border: "none", padding: "10px 22px", cursor: "pointer", fontWeight: 600,

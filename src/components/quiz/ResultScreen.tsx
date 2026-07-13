@@ -139,7 +139,7 @@ export function ResultScreen({
     root.querySelectorAll<HTMLElement>("[data-scene]").forEach((s) => {
       s.getAnimations({ subtree: true }).forEach((a) => {
         // Preserve infinite CSS animations on .sa-cta-keep elements (pulse, glow, arrow)
-        const target = a.effect?.target as HTMLElement | null;
+        const target = (a.effect as KeyframeEffect | null)?.target as HTMLElement | null;
         if (target?.closest?.(".sa-cta-keep")) return;
         a.cancel();
       });
