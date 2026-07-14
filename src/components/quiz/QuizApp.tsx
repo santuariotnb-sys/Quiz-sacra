@@ -35,6 +35,7 @@ import { getSupabase } from "@/lib/supabase";
 import { captureMetaClickData, getMetaClickData, getOrCreateExternalId, readFbCookies, saveTrackingSession, sendTrackingBeacon, trackInitiateCheckout } from "@/lib/tracking";
 import { fetchProductPrices, fetchInstallmentFreeCount, formatBRL } from "@/lib/prices";
 import { QUIZ_ID, PIXEL_ID } from "@/lib/quiz-config";
+import { enqueueWhatsappResult } from "@/lib/whatsapp-enqueue";
 import logoSrc from "@/assets/rotina-de-paz-logo.webp";
 import crossBrushSrc from "@/assets/cross-brush.webp";
 import { Check } from "lucide-react";
@@ -526,6 +527,9 @@ export function QuizApp() {
         } catch (e) {
           console.error("[save_lead_contact] erro:", e);
         }
+
+        // Enfileira o disparo do resultado no WhatsApp (fire-and-forget, so com WA)
+        if (hasWhatsapp) enqueueWhatsappResult(leadId);
 
         // Envia resultado por email via edge function (Resend)
         if (hasEmail && arche) {
