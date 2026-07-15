@@ -417,6 +417,17 @@ export function QuizApp() {
   function ensureLeadStarted() {
     if (leadStartedRef.current) return;
     leadStartedRef.current = true;
+    // Guard persistente por sessão (external_id): o leadStartedRef é só em-memória e
+    // reseta a cada reload/remount — quem reabre o quiz gerava uma linha de lead NOVA
+    // a cada visita (ex.: 1 pessoa = 6 linhas). Se já temos o lead_id dessa sessão em
+    // cache, reaproveita (submitContact continua com lead_id) e NÃO insere de novo.
+    const eid = getOrCreateExternalId();
+    let cachedLeadId: string | null = null;
+    try { cachedLeadId = localStorage.getItem(`rdp_lead_id_${eid}`); } catch { /* noop */ }
+    if (cachedLeadId) {
+      leadPromiseRef.current = Promise.resolve(cachedLeadId);
+      return;
+    }
     leadPromiseRef.current = persistLead(answers).catch(() => null);
   }
   useEffect(() => {
@@ -460,6 +471,9 @@ export function QuizApp() {
       if (error) console.error("[persist_lead] falhou:", error.message, error.code);
       return null;
     }
+    // Cache do lead_id por sessão → o próximo mount/reload reaproveita em vez de
+    // inserir outra linha de lead pra mesma pessoa (ver ensureLeadStarted).
+    try { localStorage.setItem(`rdp_lead_id_${getOrCreateExternalId()}`, leadId); } catch { /* noop */ }
     // Persiste arquétipo localmente para o App da Aluna (Parte 2)
     try {
       localStorage.setItem(
