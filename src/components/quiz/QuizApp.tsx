@@ -447,7 +447,74 @@ export function QuizApp() {
     if (!stepName || firedStagesRef.current.has(stepName)) return;
     firedStagesRef.current.add(stepName);
     trackStep(stepName);
+    // ViewContent (Meta) na entrada da oferta — sinal de audiência (lookalike +
+    // retargeting), NÃO o evento de otimização (campanha segue em Compra).
+    if (stepName === "offer") fireViewContent();
   }, [stage]);
+
+  // Dispara ViewContent (pixel + CAPI) quando a usuária chega na oferta. Carrega
+  // o PERFIL (arquétipo/desejo/situação) no custom_data → o Meta constrói audiência
+  // de quem chega na oferta (lookalike) e retargeting de quem viu e não comprou.
+  // Espelha o Lead: advanced matching (em/ph/external_id) + CAPI server-side (mesmo
+  // eventID = dedup) pra cobrir os ~75% de iOS/in-app do IG que o pixel perde.
+  function fireViewContent() {
+    try {
+      if (typeof window === "undefined" ||
+          !["sacra.rotinadepaz.com.br", "rotinadepaz.com.br"].includes(window.location.hostname)) return;
+      const eid = getOrCreateExternalId();
+      const digits = whatsapp.replace(/\D/g, "");
+      const ph = digits.length >= 10 ? `55${digits}` : undefined;
+      const hasEmail = !!(email && email.includes("@"));
+      const priceValue = mainPriceCents / 100;
+      // Perfil do interessado → custom_data (audiência/retargeting no Meta).
+      const profile: Record<string, string> = {};
+      if (archetype) profile.archetype = archetype;
+      if (desire) profile.desire = desire;
+      if (situation) profile.situation = situation;
+      const fbq = (window as any).fbq;
+      if (fbq) {
+        fbq("init", PIXEL_ID, {
+          ...(hasEmail ? { em: email.toLowerCase().trim() } : {}),
+          ...(ph ? { ph } : {}),
+          external_id: eid,
+        });
+        fbq("trackSingle", PIXEL_ID, "ViewContent", {
+          content_name: "Rotina de Paz",
+          ...(archetype ? { content_category: archetype } : {}),
+          value: priceValue,
+          currency: "BRL",
+          ...profile,
+        }, { eventID: `vc_${eid}` });
+      }
+      // CAPI (server-side) — mesmo eventID → dedup no Meta.
+      try {
+        const cached = getMetaClickData();
+        const fresh = readFbCookies();
+        const fbp = fresh.fbp ?? cached.fbp;
+        const fbc = cached.fbc ?? fresh.fbc;
+        void getSupabase()?.functions.invoke("track-event", {
+          body: {
+            event_name: "ViewContent",
+            event_id: `vc_${eid}`,
+            event_source_url: window.location.href,
+            visitor_id: eid,
+            fbp,
+            fbc,
+            user_agent: navigator.userAgent,
+            properties: {
+              content_name: "Rotina de Paz",
+              value: priceValue,
+              currency: "BRL",
+              ...profile,
+              ...(ph ? { customer_phone: ph } : {}),
+              ...(hasEmail ? { customer_email: email.toLowerCase().trim() } : {}),
+              ...(name.trim() ? { customer_first_name: name.trim().split(" ")[0] } : {}),
+            },
+          },
+        }).catch(() => {});
+      } catch { /* nunca bloqueia */ }
+    } catch { /* nunca bloqueia o fluxo */ }
+  }
 
   async function persistLead(ans: Record<string, string>): Promise<string | null> {
     const sb = getSupabase();
