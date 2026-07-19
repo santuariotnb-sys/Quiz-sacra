@@ -152,8 +152,11 @@ export function QuizApp() {
   }
   const saved = savedRef.current;
 
+  // Abertura V4: sem hero/acolhimento — entra direto na 1ª pergunta (peso).
+  // Os componentes HeroScreen/AcolhimentoScreen são preservados no código
+  // (restauração de sessão pode citá-los), mas não são mais a porta de entrada.
   const [stage, setStage] = useState<Stage>(
-    preview ? preview.stage : saved ? saved.stage : "hero",
+    preview ? preview.stage : saved ? saved.stage : "questions",
   );
   // Retomada: banner "Que bom que você voltou" quando restaura de localStorage
   const [showResumeBanner, setShowResumeBanner] = useState(
@@ -243,9 +246,10 @@ export function QuizApp() {
     void saveTrackingSession(getOrCreateExternalId()).catch(() => {});
   }, []);
 
-  // Funnel: arrival beacon (once, on hero mount)
+  // Funnel: arrival beacon (once, no mount — carregamento do quiz = PageView/arrival).
+  // V4 entra direto em "questions", então o arrival é disparado no load, não no hero.
   useEffect(() => {
-    if (stage === "hero" && !preview) trackStep("arrival");
+    if (!preview) trackStep("arrival");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -278,7 +282,10 @@ export function QuizApp() {
 
   const archetype: Archetype | null = preview?.archetype ?? result?.archetype ?? null;
   const arche = archetype ? ARCHETYPES[archetype] : null;
-  const situation = answers["situacao"] ?? preview?.situation;
+  // V4: `peso` (Q1) ocupa o slot de "situation" (meta:"situation"). As bridges
+  // antigas eram keyadas por contexto demográfico (casada/mãe solo…), que não
+  // existe mais → bridge degrada pra null (ResultScreen/e-mail já tratam null).
+  const situation = answers["peso"] ?? preview?.situation;
   const desire = answers["desejo"] ?? preview?.desire;
   const bridge = arche && situation ? arche.bridges[situation] ?? null : null;
 
@@ -324,16 +331,17 @@ export function QuizApp() {
         return;
       }
 
-      // Intercept: após pergunta 3 (idx=2, key="sintoma") → tela de idade
-      if (idx === 2 && q.key === "sintoma") {
+      // Intercept por question_key (não por índice): após "sintoma" → tela de idade.
+      // Key-based sobrevive a reordenamentos da lista de perguntas (V4).
+      if (q.key === "sintoma") {
         setQIndex(idx + 1);
         window.setTimeout(() => setStage("age"), 200);
         answeringRef.current = false;
         return;
       }
 
-      // Intercept: após pergunta 5 (idx=4, key="frase") → tela de alerta
-      if (idx === 4 && q.key === "frase") {
+      // Intercept por question_key: após "frase" → tela de alerta.
+      if (q.key === "frase") {
         setQIndex(idx + 1);
         window.setTimeout(() => setStage("alert"), 200);
         answeringRef.current = false;
@@ -526,7 +534,7 @@ export function QuizApp() {
       p_archetype: archetype,
       p_scores: scores,
       p_desire: ans["desejo"] ?? null,
-      p_situation: ans["situacao"] ?? null,
+      p_situation: ans["peso"] ?? null,
       p_risk_flag: answersHaveRisk(ans),
       p_external_id: getOrCreateExternalId(),
       p_quiz_id: QUIZ_ID,
@@ -549,7 +557,7 @@ export function QuizApp() {
           archetype,
           name: name || null,
           desire: ans["desejo"] ?? null,
-          situation: ans["situacao"] ?? null,
+          situation: ans["peso"] ?? null,
           lead_id: leadId,
           created_at: new Date().toISOString(),
         }),
@@ -835,6 +843,8 @@ export function QuizApp() {
             bridge={bridge}
             name={name}
             desire={desire}
+            answers={answers}
+            scores={result?.scores}
             onContinue={goToOffer}
           />
         )}
@@ -1184,6 +1194,11 @@ function QuestionScreen({
               typingDelay={transition ? 100 : 0}
             />
           )}
+          {!reaction && showPrompt && q.subprompt && (
+            <p className="pl-1 text-sm italic text-[color:var(--amethyst)]">
+              {q.subprompt}
+            </p>
+          )}
         </div>
       </div>
 
@@ -1265,7 +1280,7 @@ function LoadingScreen({ step, answers, name, statCard, proof }: { step: number;
     return opt?.pill ?? "";
   };
 
-  const pillSituacao = pillOf("situacao");
+  const pillSituacao = pillOf("peso");
   const pillSintoma = pillOf("sintoma");
   const pillComportamento = pillOf("comportamento");
 

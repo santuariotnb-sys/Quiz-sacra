@@ -12,7 +12,7 @@ function getProgress(qIndex: number): number {
 
 // G2: Extrai pills acumuladas das respostas (nunca inclui risco).
 // Mostra a partir da P3 (qIndex >= 2). Máx 3 pills.
-const PILL_KEYS_ORDER = ["situacao", "sintoma", "comportamento"];
+const PILL_KEYS_ORDER = ["peso", "sintoma", "comportamento"];
 
 function getPills(answers: Record<string, string>, qIndex: number): string[] {
   if (qIndex < 2) return [];
