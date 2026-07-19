@@ -3,7 +3,12 @@ import { useState } from "react";
 import { ResultScreen } from "@/components/quiz/ResultScreen";
 import { OfferScreen } from "@/components/quiz/OfferScreen";
 import { ARCHETYPES, type Archetype } from "@/data/quiz";
-import { buildKirvanoUrl, captureUtms } from "@/lib/utm";
+import { buildKirvanoUrl } from "@/lib/utm";
+import {
+  getOrCreateExternalId,
+  sendTrackingBeacon,
+  trackInitiateCheckout,
+} from "@/lib/tracking";
 
 // Rota STANDALONE de resultado — para o botão do WhatsApp (mensagem de resultado)
 // abrir o resultado bonito do quiz por link, sem refazer o quiz.
@@ -35,15 +40,23 @@ function ResultadoStandalone() {
   if (!a || !VALID.includes(a)) return <Navigate to="/quiz" />;
   const arche = ARCHETYPES[a];
 
-  function checkout() {
+  async function checkout() {
+    // external_id do link (lead) ou o do navegador — garante src na Kirvano e
+    // semeia tracking_sessions (fbp/fbc/ua) p/ o CAPI Purchase achar o match.
+    const eid = lead ?? getOrCreateExternalId();
+    sendTrackingBeacon(eid);
+    await trackInitiateCheckout(eid, {
+      value: PRICE_CENTS / 100,
+      contentName: "Rotina de Paz",
+    });
     const url = buildKirvanoUrl(KIRVANO_URL, {
       archetype: a,
       name: nome,
-      externalId: lead,
+      externalId: eid,
     });
-    // preserva UTMs da origem (ex.: utm_source=whatsapp)
+    // buildKirvanoUrl já mescla as UTMs capturadas/persistidas (e exclui fbclid de
+    // propósito — fbc/fbp reais vão via click-data). Aqui só o default de origem.
     const u = new URL(url);
-    for (const [k, v] of Object.entries(captureUtms())) if (v) u.searchParams.set(k, v);
     if (!u.searchParams.get("utm_source")) u.searchParams.set("utm_source", "whatsapp");
     window.location.href = u.toString();
   }
