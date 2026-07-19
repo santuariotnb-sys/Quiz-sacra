@@ -65,9 +65,10 @@ cp -r "$QUIZ_DIR/dist" "$RDP_DIR/dist/sacra"
 # Remover pasta nested sacra/sacra (artefato do base: "/sacra/")
 rm -rf "$RDP_DIR/dist/sacra/sacra"
 # Criar subrotas físicas (CF Pages não lê _redirects nested)
-mkdir -p "$RDP_DIR/dist/sacra/quiz" "$RDP_DIR/dist/sacra/obrigado"
+mkdir -p "$RDP_DIR/dist/sacra/quiz" "$RDP_DIR/dist/sacra/obrigado" "$RDP_DIR/dist/sacra/resultado"
 cp "$RDP_DIR/dist/sacra/index.html" "$RDP_DIR/dist/sacra/quiz/index.html"
 cp "$RDP_DIR/dist/sacra/index.html" "$RDP_DIR/dist/sacra/obrigado/index.html"
+cp "$RDP_DIR/dist/sacra/index.html" "$RDP_DIR/dist/sacra/resultado/index.html"
 
 echo "🔀 [4/5] Ajustar _redirects..."
 # /sacra/* ANTES do catch-all (ordem importa)
