@@ -510,7 +510,7 @@ function VSLPlayer() {
         }}>
           OUÇA E ENTENDA POR QUE FUNCIONA
         </span>
-        <div style={{ fontSize: 10, color: "#8A7C93", marginTop: 4 }}>Player só 5 minutos !</div>
+        <div style={{ fontSize: 11, color: "#8A7C93", marginTop: 4 }}>O vídeo tem só 5 minutos.</div>
       </div>
     </Reveal>
   );

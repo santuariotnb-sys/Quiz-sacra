@@ -1119,12 +1119,18 @@ function QuestionScreen({
     setShowOptions(false);
     setShowPrompt(!transition);
     setPicked(null);
-    const promptDelay = transition ? 650 : 0;
+    // Mesma regra do SpeechBubble: reduced-motion ou aba oculta (pré-load do Meta
+    // in-app) = sem espera coreografada — pergunta e opções prontas de imediato.
+    const skipAnim =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
+      document.visibilityState === "hidden";
+    const promptDelay = skipAnim || !transition ? 0 : 650;
     const t1 = transition
       ? window.setTimeout(() => setShowPrompt(true), promptDelay)
       : null;
-    const optDelay =
-      promptDelay + (transition ? 100 : 0) + q.prompt.length * 30 + 250;
+    const optDelay = skipAnim
+      ? 0
+      : promptDelay + (transition ? 100 : 0) + q.prompt.length * 30 + 250;
     const t2 = window.setTimeout(() => setShowOptions(true), optDelay);
     return () => {
       if (t1) clearTimeout(t1);

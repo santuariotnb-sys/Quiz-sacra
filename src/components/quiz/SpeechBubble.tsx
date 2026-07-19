@@ -14,6 +14,17 @@ type Props = {
   instant?: boolean;
 };
 
+/**
+ * Typewriter só quando faz sentido: usuária com reduced-motion pediu sem animação,
+ * e aba oculta (Meta in-app pré-carrega em webview hidden) clampa setInterval a 1s —
+ * o texto "digitaria" a 1 char/segundo. Nos dois casos, renderiza pronto.
+ */
+function shouldTypeInstantly(): boolean {
+  if (typeof window === "undefined" || typeof document === "undefined") return true;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return true;
+  return document.visibilityState === "hidden";
+}
+
 export function SpeechBubble({
   text,
   speed = 30,
@@ -21,8 +32,9 @@ export function SpeechBubble({
   onDone,
   italic = false,
   resetKey,
-  instant = false,
+  instant: instantProp = false,
 }: Props) {
+  const instant = instantProp || shouldTypeInstantly();
   // instant: já nasce com o texto pronto (sem piscar). typewriter: começa vazio.
   const [output, setOutput] = useState(instant ? text : "");
   const [typing, setTyping] = useState(!instant && typingDelay > 0);
@@ -80,22 +92,33 @@ export function SpeechBubble({
           className="absolute -left-1.5 top-3 h-4 w-4 rotate-45 bg-white"
           style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
         />
-        {typing ? (
-          <span className="flex items-center gap-1.5 text-[color:var(--amethyst)]">
-            <Dot delay={0} />
-            <Dot delay={0.2} />
-            <Dot delay={0.4} />
+        <p
+          aria-label={text}
+          className={`relative font-display text-lg leading-snug text-[color:var(--deep-purple)] sm:text-[26px] ${
+            italic ? "italic" : ""
+          }`}
+        >
+          {/* Fantasma invisível com o texto completo: o balão já nasce no tamanho final.
+              Sem isso, o typewriter empurra os botões abaixo enquanto digita e a usuária
+              erra o toque (botão se move sob o dedo — flagrado no QA mobile). */}
+          <span aria-hidden className="invisible">
+            {text}
           </span>
-        ) : (
-          <p
-            className={`font-display text-lg leading-snug text-[color:var(--deep-purple)] sm:text-[26px] ${
-              italic ? "italic" : ""
-            }`}
-          >
-            {display}
-            {showCursor && <span className="opacity-40">▌</span>}
-          </p>
-        )}
+          <span aria-hidden className="absolute inset-0">
+            {typing ? (
+              <span className="flex h-full items-center gap-1.5 text-[color:var(--amethyst)]">
+                <Dot delay={0} />
+                <Dot delay={0.2} />
+                <Dot delay={0.4} />
+              </span>
+            ) : (
+              <>
+                {display}
+                {showCursor && <span className="opacity-40">▌</span>}
+              </>
+            )}
+          </span>
+        </p>
       </div>
     </div>
   );
