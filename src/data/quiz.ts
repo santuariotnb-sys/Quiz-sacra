@@ -21,41 +21,31 @@ export type QuizQuestion = {
   transition?: string;
   /** Se presente, sobrescreve a transição com base em uma resposta anterior. */
   transitionFrom?: { questionKey: string; map: Record<string, string> };
+  /** Microcopy discreta exibida abaixo do prompt (ex.: guia de toque na abertura). */
+  subprompt?: string;
 };
 
 export const QUESTIONS: QuizQuestion[] = [
   {
-    key: "situacao",
+    key: "peso",
     meta: "situation",
-    transition:
-      "Para que o diagnóstico seja preciso para a sua vida, preciso entender o seu contexto primeiro.",
-    prompt: "Qual situação descreve melhor a sua vida hoje?",
+    // Abertura V4: sem hero/acolhimento — o quiz abre direto nesta pergunta.
+    // Sem `transition` pra a pergunta aparecer imediatamente (1º clique inicia a sessão).
+    prompt: "Se você pudesse soltar hoje um peso que ninguém vê, qual seria?",
+    subprompt: "Toque no peso que mais parece com a sua vida hoje.",
     options: [
-      { value: "casada-filhos-pequenos", label: "Sou casada e tenho filhos pequenos (0-12 anos)", pill: "Filhos pequenos" },
-      { value: "casada-filhos-grandes", label: "Sou casada e tenho filhos grandes (adolescentes/adultos)", pill: "Filhos grandes" },
-      { value: "casada-sem-filhos", label: "Sou casada, sem filhos (ou tentando)", pill: "Casada" },
-      { value: "mae-solo", label: "Sou mãe solo — sustento minha casa sozinha", pill: "Mãe solo" },
-      { value: "solteira", label: "Sou solteira, sem filhos", pill: "Solteira" },
+      { value: "sobrecarga", label: "O peso de precisar dar conta de todo mundo.", scores: { sobrecarga: 3 }, pill: "Dar conta de todos" },
+      { value: "vigilante", label: "O peso de nunca conseguir baixar a guarda.", scores: { vigilante: 3 }, pill: "Sem baixar a guarda" },
+      { value: "culposa", label: "O peso da culpa quando tento cuidar de mim.", scores: { culposa: 3 }, pill: "Culpa ao se cuidar" },
+      { value: "antecipatoria", label: "O peso do medo de que algo ruim aconteça.", scores: { antecipatoria: 3 }, pill: "Medo do amanhã" },
     ],
   },
   {
     key: "risco",
     prompt: "Nas últimas 2 semanas, o que melhor descreve como você tem se sentido?",
-    transitionFrom: {
-      questionKey: "situacao",
-      map: {
-        "casada-filhos-pequenos":
-          "Quem cuida de filho pequeno raramente tem tempo pra escutar a si mesma. Você reservou esses 3 minutos. Use eles com honestidade.",
-        "casada-filhos-grandes":
-          "Mãe de filho grande raramente reclama. A gente aprende que reclamar é fraqueza. Aqui não tem ninguém pra te julgar.",
-        "casada-sem-filhos":
-          "Existe um tipo de ansiedade que aparece quando por fora 'está tudo certo'. Justamente por isso, ninguém suspeita.",
-        "mae-solo":
-          "Sustentar uma casa sozinha já é peso suficiente. Algumas perguntas vão ser difíceis. Mas você é a única que pode responder por você.",
-        solteira:
-          "Ansiedade não tem cara nem idade. Mulher solteira sofre em silêncio porque ninguém pergunta. Aqui alguém está perguntando.",
-      },
-    },
+    // Microvalidação V4 pós-1ª resposta (peso): dita ANTES da pergunta de risco.
+    transition:
+      "Esse peso não define quem você é. Mas mostra exatamente onde o seu descanso está sendo roubado. Vamos descobrir como ele se mantém ativo.",
     options: [
       { value: "funcionando", label: "Cansada, ansiosa, mas funcionando" },
       { value: "dificil", label: "Tenho tido dias muito difíceis, mas consigo continuar" },
@@ -241,6 +231,8 @@ export type NeurofeData = {
 export type ArchetypeData = {
   id: Archetype;
   name: string;
+  /** Nome emocional de exibição (V4) — usado na tela de resultado. */
+  emotionalName: string;
   subtitle: string;
   tagline: string;
   result: ArchetypeResult;
@@ -265,6 +257,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
   vigilante: {
     id: "vigilante",
     name: "VIGILANTE",
+    emotionalName: "A Guardiã que Não Desliga",
     subtitle: "O padrão da Mente Que Não Desliga.",
     tagline: "O método guiado para a Mente Que Não Desliga.",
     result: {
@@ -409,6 +402,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
   sobrecarga: {
     id: "sobrecarga",
     name: "SOBRECARGA",
+    emotionalName: "A Cuidadora em Plantão",
     subtitle: "O padrão da Que Carrega Todos.",
     tagline: "O método guiado para a Que Carrega Todos.",
     result: {
@@ -554,6 +548,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
   culposa: {
     id: "culposa",
     name: "CULPOSA",
+    emotionalName: "A Filha que se Cobra",
     subtitle: "O padrão da Que Não Se Perdoa.",
     tagline: "O método guiado para a Que Não Se Perdoa.",
     result: {
@@ -698,6 +693,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeData> = {
   antecipatoria: {
     id: "antecipatoria",
     name: "ANTECIPATÓRIA",
+    emotionalName: "A Sentinela do Amanhã",
     subtitle: "O padrão da Que Antecipa o Pior.",
     tagline: "O método guiado para a Que Antecipa o Pior.",
     result: {
@@ -947,6 +943,54 @@ export function getBridgeCopy(archetype: ArchetypeData, desire?: string): Bridge
   };
 }
 
+// ── V4 · Resultado (valor antes de vender) ──
+export const RESULT_LABEL = "O peso que mais tem roubado a sua paz";
+export const RESULT_HEADLINE = "Por trás desse peso, seu padrão predominante hoje é:";
+export const RESULT_EVIDENCE_TITLE = "Isso apareceu nas suas respostas porque:";
+export const RESULT_ABSOLUTION = "Esse peso não é quem você é.";
+
+/** Razões curtas derivadas das respostas REAIS — mostradas no bloco de evidências. */
+export const RESULT_REASONS: Record<string, Record<string, string>> = {
+  peso: {
+    sobrecarga: "Você apontou o peso de precisar dar conta de todo mundo.",
+    vigilante: "Você apontou o peso de nunca conseguir baixar a guarda.",
+    culposa: "Você apontou o peso da culpa quando tenta cuidar de si.",
+    antecipatoria: "Você apontou o peso do medo de que algo ruim aconteça.",
+  },
+  sintoma: {
+    madrugada: "Seu corpo acorda de madrugada e não volta a dormir.",
+    tensao: "O cansaço aparece como tensão em ombros, pescoço e mandíbula.",
+    estomago: "O estômago trava — o corpo reage ao que a mente segura.",
+    peito: "O peito aperta, como se algo ruim estivesse por vir.",
+    todos: "Seu corpo dá vários desses sinais ao mesmo tempo.",
+  },
+  comportamento: {
+    checagem: "Você fica checando tudo e não consegue desligar.",
+    "aceitar-mais": "Você aceita mais uma tarefa e não consegue dizer não.",
+    oracao: "Você ora, relê versículos — e o aperto não passa.",
+    cenarios: "Você ensaia cenários difíceis antes de eles acontecerem.",
+  },
+  frase: {
+    soltar: "A frase que mais aperta é: “Se eu soltar, algo ruim acontece.”",
+    "nao-parar": "A frase que mais aperta é: “Não posso parar, dependem de mim.”",
+    insuficiente: "A frase que mais aperta é: “Nunca sou suficiente.”",
+    pior: "A frase que mais aperta é: “E se acontecer o pior?”",
+  },
+};
+
+/** Até 3 razões, na ordem peso → sintoma → comportamento → frase (as que a usuária respondeu). */
+export function getResultReasons(answers: Record<string, string>): string[] {
+  const order = ["peso", "sintoma", "comportamento", "frase"];
+  const out: string[] = [];
+  for (const key of order) {
+    if (out.length >= 3) break;
+    const val = answers[key];
+    const reason = val && RESULT_REASONS[key]?.[val];
+    if (reason) out.push(reason);
+  }
+  return out;
+}
+
 export function computeArchetype(
   answers: Record<string, string>,
 ): { scores: Record<Archetype, number>; archetype: Archetype } {
@@ -986,8 +1030,9 @@ if (import.meta.env?.DEV) {
   if (QUESTIONS[1]?.key !== "risco") {
     console.warn("[quiz] esperada Q2 com key='risco'");
   }
-  // 3) Todas as opções não-risk devem ter scores definidos (exceto Q1 contexto e Q7 desejo)
-  const noScoreKeys = new Set(["situacao", "desejo"]);
+  // 3) Todas as opções não-risk devem ter scores definidos (exceto Q7 desejo).
+  // Q1 "peso" agora PONTUA (substituiu "situacao", que não tinha score).
+  const noScoreKeys = new Set(["desejo"]);
   QUESTIONS.forEach((q) => {
     if (noScoreKeys.has(q.key) || q.key === "risco") return;
     q.options.forEach((o) => {
@@ -1001,6 +1046,12 @@ if (import.meta.env?.DEV) {
 // ── G1-v2: Reações da guia por opção (voz feminina, não fórmula) ──
 
 const GUIDE_REACTIONS: Record<string, Record<string, string>> = {
+  peso: {
+    sobrecarga: "Dar conta de todo mundo cansa em silêncio. Anotei 🤍",
+    vigilante: "Nunca conseguir baixar a guarda pesa demais. Eu ouvi 🤍",
+    culposa: "Culpa por tentar se cuidar… isso dói. Anotei 🤍",
+    antecipatoria: "O medo do amanhã rouba o hoje. Entendi 🤍",
+  },
   sintoma: {
     madrugada: "3h da manhã… eu sei exatamente o que é isso. Anotei 🤍",
     tensao: "Esse cansaço que dormir não resolve. Eu ouvi 🤍",
@@ -1035,7 +1086,6 @@ const GUIDE_REACTIONS: Record<string, Record<string, string>> = {
 };
 
 const GUIDE_REACTIONS_GENERIC: Record<string, string> = {
-  situacao: "Entendi seu contexto. Isso muda como eu leio todo o resto 🤍",
   desejo: "É exatamente pra isso que o seu resultado aponta 🤍",
 };
 
