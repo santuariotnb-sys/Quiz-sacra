@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { NEUROFE_OFFER, DESIRE_CTA, DESIRE_QUOTE, OFFER_HEADLINE, type ArchetypeData } from "@/data/quiz";
+import { NEUROFE_OFFER, DESIRE_QUOTE, OFFER_HEADLINE, type ArchetypeData } from "@/data/quiz";
 import { formatBRL } from "@/lib/prices";
 import { trackVslEvent } from "@/lib/tracking";
 import logoImg from "@/assets/logo.webp";
@@ -748,49 +748,6 @@ function AnimatedGridPattern({ numSquares = 25, gridSize = 48, maxOpacity = 0.08
   );
 }
 
-/* ---------- ScarcityBar ---------- */
-
-function ScarcityBar() {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) { setW(63); io.disconnect(); }
-        });
-      },
-      { threshold: 0.4 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-  return (
-    <Reveal
-      style={{
-        marginTop: 22,
-        background: "linear-gradient(180deg,#3B2B52,#241B33)",
-        border: "1px solid rgba(228,200,120,.4)",
-        borderRadius: 16, padding: "16px 18px", textAlign: "left",
-        boxShadow: "0 12px 30px rgba(59,43,82,.25)",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, letterSpacing: 2, color: "#E4C878", fontWeight: 700 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#E4C878", animation: "sa-vagaBlink 1.6s ease-in-out infinite" }} />
-          TURMA LIMITADA · 100 MULHERES
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#F5EEE2" }}>37 vagas</div>
-      </div>
-      <div ref={ref} style={{ height: 8, borderRadius: 99, background: "rgba(255,255,255,.12)", marginTop: 12, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${w}%`, borderRadius: 99, background: "linear-gradient(90deg,#E89BC8,#E4C878)", transition: "width 1.3s cubic-bezier(.22,.8,.3,1)" }} />
-      </div>
-    </Reveal>
-  );
-}
-
 /* ---------- Data ---------- */
 
 const ENTREGAS: Array<{ t: string; d: string }> = [
@@ -809,6 +766,35 @@ const INCLUI = [
   "Louvores do Reino (148)",
   "Acesso vitalício",
 ];
+
+// V4 · Mecanismo — 4 passos (corpo → nome do padrão → Palavra → repetição).
+const MECHANISM_STEPS: Array<{ t: string; d: string }> = [
+  { t: "O corpo desacelera", d: "A respiração guiada tira o corpo do estado de alerta — o peito solta, os ombros descem." },
+  { t: "O padrão ganha nome", d: "Você reconhece o que dispara o peso, em vez de lutar contra um cansaço sem explicação." },
+  { t: "A Palavra na dor certa", d: "Cada prática aplica a Palavra exatamente onde culpa, vigilância, sobrecarga ou medo assumem o controle." },
+  { t: "A repetição constrói", d: "Manhã e noite, o corpo recebe um sinal novo — até uma resposta de paz virar automática." },
+];
+
+// V4 · Jornada de 7 dias (copy exata do prompt de execução).
+const JOURNEY_7D: Array<{ d: string; t: string; body: string }> = [
+  { d: "Dia 1", t: "O peso finalmente ganha nome", body: "Você identifica onde o plantão começa e deixa de lutar contra um cansaço sem explicação." },
+  { d: "Dia 2", t: "Descansar deixa de parecer abandono", body: "Você distingue responsabilidade real da cobrança que transforma toda pausa em culpa." },
+  { d: "Dia 3", t: "A frase que reacende o peso perde o comando", body: "Você reconhece o pensamento automático antes que ele conduza o corpo e o restante do dia." },
+  { d: "Dia 4", t: "O corpo recebe um novo sinal", body: "Respiração, Palavra direcionada e gesto-âncora formam uma resposta prática para o momento de alerta." },
+  { d: "Dia 5", t: "Você solta o que não precisa carregar agora", body: "A rendição deixa de parecer negligência e passa a ser uma escolha consciente de limite." },
+  { d: "Dia 6", t: "Sua mente recebe permissão para encerrar o dia", body: "A prática noturna ajuda a parar de revisar problemas quando o corpo já está na cama." },
+  { d: "Dia 7", t: "Você termina com um mapa para usar quando o peso voltar", body: "Você sabe qual prática aplicar diante de culpa, vigilância, sobrecarga ou medo do amanhã." },
+];
+
+// V4 · Prova de identificação (NÃO é prova de resultado — comentários anônimos).
+const IDENTIFICATION_COMMENTS = [
+  "Essa sou eu faz muito tempo.",
+  "Verdade. Estou vazia de sentimentos.",
+  "É isso mesmo. Preciso saber o que devo fazer.",
+];
+
+// Canal de suporte real do projeto (Guia.md). Sem CNPJ/razão social — não existem no repo.
+const SUPPORT_EMAIL = "suporte@rotinadepaz.com.br";
 
 /* ---------- OfferScreen ---------- */
 
@@ -833,9 +819,13 @@ export function OfferScreen({
 }) {
   void _freeInstCount;
   void anchorCents;
-  const ctaLabel = (desire && DESIRE_CTA[desire]) || "Eu creio — quero minha paz";
+  // V4: CTA único de compra em todas as chamadas (via onCheckout). Sem "Eu creio".
+  const ctaLabel = "QUERO COMEÇAR MEUS 7 DIAS DE PAZ →";
+  const ctaShort = "QUERO MEUS 7 DIAS →";
   const quote = (desire && DESIRE_QUOTE[desire]) || null;
   const priceReais = Math.round(priceCents / 100);
+  // Valor por dia da jornada (priceCents / 7), calculado — sem hardcode.
+  const perDay = (priceCents / 100 / 7).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const firstName = leadName?.trim().split(/\s+/)[0] || "";
   const offerH = OFFER_HEADLINE[archetype.name] ?? OFFER_HEADLINE["SOBRECARGA"];
 
@@ -932,8 +922,9 @@ export function OfferScreen({
           </Reveal>
           <Reveal>
             <div className="sa-offer-chips">
-              <span className="sa-offer-chip">10 min por sessão</span>
-              <span className="sa-offer-chip">nenhuma tarefa a mais</span>
+              <span className="sa-offer-chip">2 práticas por dia</span>
+              <span className="sa-offer-chip">8 a 12 min cada</span>
+              <span className="sa-offer-chip">acesso imediato</span>
             </div>
           </Reveal>
           <div className="sa-offer-playcta">
@@ -1031,6 +1022,55 @@ export function OfferScreen({
             </div>
           </Reveal>
         </Reveal>
+
+        {/* Mecanismo — 4 passos */}
+        <div style={{ marginTop: 48 }}>
+          <Reveal as="h2" style={{ fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: 27, color: "#4A4152", margin: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ flex: "none", width: 34, height: 2, background: "#D4AF37" }} />Como o método carrega essa jornada
+          </Reveal>
+          <Reveal style={{ fontSize: 14, lineHeight: 1.7, color: "#5D5368", marginTop: 14 }}>
+            O Rotina de Paz não pede que você abandone responsabilidades. Ele conduz <b style={{ color: "#4A4152" }}>duas práticas curtas por dia</b> para que o corpo desacelere, o padrão seja interrompido e a Palavra seja aplicada exatamente onde culpa, vigilância, sobrecarga ou medo do amanhã costumam assumir o controle.
+          </Reveal>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 22 }}>
+            {MECHANISM_STEPS.map((s, i) => (
+              <Reveal
+                key={s.t}
+                style={{
+                  display: "flex", gap: 13, alignItems: "flex-start",
+                  background: "#fff", border: "1px solid rgba(212,175,55,.25)",
+                  boxShadow: "0 4px 16px rgba(90,70,40,.06)", borderRadius: 14, padding: "15px 17px",
+                }}
+              >
+                <div style={{ flex: "none", width: 26, height: 26, borderRadius: "50%", background: "#3B2B52", color: "#E4C878", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{i + 1}</div>
+                <div style={{ fontSize: 14, lineHeight: 1.6, color: "#4A4152" }}>
+                  <b>{s.t}</b> — {s.d}
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+
+        {/* Jornada de 7 dias */}
+        <div style={{ marginTop: 48 }}>
+          <Reveal as="h2" style={{ fontFamily: "'Cormorant Garamond',serif", fontWeight: 500, fontSize: 27, color: "#4A4152", margin: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ flex: "none", width: 34, height: 2, background: "#D4AF37" }} />A jornada de 7 dias
+          </Reveal>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
+            {JOURNEY_7D.map((day) => (
+              <Reveal
+                key={day.d}
+                style={{
+                  background: "#fff", border: "1px solid rgba(212,175,55,.22)",
+                  boxShadow: "0 4px 14px rgba(90,70,40,.05)", borderRadius: 14, padding: "14px 16px", textAlign: "left",
+                }}
+              >
+                <div style={{ fontSize: 10.5, letterSpacing: 2, color: "#8A6A2A", fontWeight: 700 }}>{day.d.toUpperCase()}</div>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 19, color: "#3B2B52", marginTop: 4, lineHeight: 1.25 }}>{day.t}</div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#5D5368", marginTop: 6 }}>{day.body}</div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
 
         {/* Social proof — WhatsApp screenshots */}
         <ShotsCarousel />
@@ -1141,15 +1181,9 @@ export function OfferScreen({
           >
             Rotina de Paz
           </h2>
-          <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "#6B6076", marginTop: 12, maxWidth: 360, marginLeft: "auto", marginRight: "auto" }}>
-            Para{" "}
-            <mark style={{ background: "linear-gradient(180deg, transparent 55%, rgba(228,200,120,.55) 55%)", color: "#6B6076", padding: "0 2px", fontWeight: 600 }}>
-              suporte
-            </mark>{" "}
-            no app, limitamos a <b style={{ color: "#8A6A2A" }}>100 mulheres de fé</b>.
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, lineHeight: 1.4, color: "#4A4152", marginTop: 12, maxWidth: 380, marginLeft: "auto", marginRight: "auto" }}>
+            Uma jornada completa, sem mensalidade e com <b style={{ color: "#8A6A2A" }}>acesso vitalício</b>.
           </div>
-
-          <ScarcityBar />
 
           {/* card oferta escuro */}
           <Reveal
@@ -1174,33 +1208,26 @@ export function OfferScreen({
               Garantia de {NEUROFE_OFFER.guaranteeDays} dias · o risco é meu
             </div>
 
-            {/* value stack */}
+            {/* o que está incluído (sem âncora inventada — V4 não usa R$228 riscado) */}
             <div style={{ marginTop: 26, textAlign: "left" }}>
+              <div style={{ fontSize: 10.5, letterSpacing: 3, color: "#E4C878", fontWeight: 700 }}>A JORNADA COMPLETA INCLUI</div>
               {NEUROFE_OFFER.valueStack.map((item) => (
                 <div
                   key={item.label}
                   style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
-                    padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,.09)",
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                    padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,.09)",
                   }}
                 >
+                  <span style={{ flex: "none", color: "#7FD69A", fontWeight: 700 }}>✓</span>
                   <div style={{ fontSize: 14, color: "#E4D9F0" }}>{item.label}</div>
-                  <div style={{ fontSize: 14, color: "#9A8FB5", textDecoration: "line-through", whiteSpace: "nowrap" }}>
-                    {formatBRL(item.cents)}
-                  </div>
                 </div>
               ))}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0 4px" }}>
-                <div style={{ fontSize: 11, letterSpacing: 2, color: "#E4C878", fontWeight: 700 }}>VALOR TOTAL</div>
-                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, color: "#9A8FB5", textDecoration: "line-through" }}>
-                  {formatBRL(NEUROFE_OFFER.anchorCents)}
-                </div>
-              </div>
             </div>
 
             {/* preço */}
             <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 13, color: "#A796BD" }}>hoje, só pra esta turma:</div>
+              <div style={{ fontSize: 13, color: "#A796BD" }}>acesso completo por:</div>
               <div
                 style={{
                   fontFamily: "'Cormorant Garamond',serif",
@@ -1211,11 +1238,11 @@ export function OfferScreen({
               >
                 R${priceReais}
               </div>
-              <div style={{ fontStyle: "italic", fontSize: 12.5, color: "#C9BCDB", marginTop: 8, maxWidth: 320, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
-                Por que tão acessível? Porque tem mulher que segura tudo sozinha — viúvas, mães solo — e todas elas merecem esse alívio.
+              <div style={{ fontStyle: "italic", fontSize: 12.5, color: "#C9BCDB", marginTop: 8, maxWidth: 340, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
+                O preço é acessível porque a entrega é digital e pode chegar a muitas mulheres sem o custo de uma consulta individual — não porque o conteúdo seja pequeno.
               </div>
               <div style={{ fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 16, color: "#E4C878", marginTop: 8 }}>
-                menos de R$7 por dia na sua primeira semana
+                R${priceReais} equivalem a aproximadamente R${perDay} por dia da jornada.
               </div>
               <div style={{ fontSize: 14, color: "#E4D9F0", marginTop: 10 }}>
                 ou{" "}
@@ -1261,7 +1288,7 @@ export function OfferScreen({
                 animation: "sa-pinkGlow 2.8s ease-in-out infinite, sa-btnPulse 2.6s ease-in-out infinite",
               }}
             >
-              {ctaLabel} &nbsp;→
+              {ctaLabel}
             </button>
             <div style={{ fontSize: 11.5, color: "#A796BD", marginTop: 14 }}>
               🔒 Pagamento seguro · Acesso imediato · Garantia de {NEUROFE_OFFER.guaranteeDays} dias
@@ -1298,6 +1325,47 @@ export function OfferScreen({
           </div>
         </Reveal>
 
+        {/* Prova de identificação (não é prova de resultado) */}
+        <Reveal style={{ marginTop: 44 }}>
+          <div style={{ fontSize: 10.5, letterSpacing: 3, color: "#8A6A2A", fontWeight: 700 }}>PROVA DE IDENTIFICAÇÃO</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+            {IDENTIFICATION_COMMENTS.map((c) => (
+              <div key={c} style={{ background: "#fff", border: "1px solid rgba(212,175,55,.22)", borderRadius: 12, padding: "12px 14px", fontFamily: "'Cormorant Garamond',serif", fontStyle: "italic", fontSize: 16, color: "#4A4152" }}>
+                “{c}”
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, lineHeight: 1.6, color: "#8A7C93", marginTop: 12 }}>
+            Esses comentários mostram identificação com a dor. Eles não são apresentados como prova de resultado do produto.
+          </div>
+        </Reveal>
+
+        {/* Motivo para começar agora (sem urgência falsa) */}
+        <Reveal
+          style={{
+            marginTop: 44, background: "linear-gradient(180deg,#fff,#FBF7EE)",
+            border: "1px solid rgba(212,175,55,.35)", borderRadius: 20, padding: "26px 22px",
+          }}
+        >
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, lineHeight: 1.25, color: "#3B2B52" }}>
+            Adiar não custa no cartão. Custa mais um dia carregando o mesmo peso.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+            {[
+              "Mais uma noite com o corpo na cama e a mente trabalhando.",
+              "Mais um dia começando cansada.",
+              "Mais uma oração transformada em esforço.",
+            ].map((p) => (
+              <div key={p} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 14, lineHeight: 1.5, color: "#5D5368" }}>
+                <span style={{ color: "#B08A38", marginTop: 1 }}>—</span>{p}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "#5D5368", marginTop: 14 }}>
+            Sem cronômetro falso e sem vagas inventadas. O motivo para começar hoje é simples: o acesso é imediato e a primeira prática pode ser feita ainda hoje.
+          </div>
+        </Reveal>
+
         {/* Garantia */}
         <Reveal
           style={{
@@ -1328,10 +1396,13 @@ export function OfferScreen({
           </div>
           <div>
             <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 600, color: "#E4C878" }}>
-              Garantia incondicional de {NEUROFE_OFFER.guaranteeDays} dias — e repara na conta.
+              Faça os 7 dias. Você terá 15 para decidir.
             </div>
             <div style={{ fontSize: 14, lineHeight: 1.65, color: "rgba(255,255,255,.85)", marginTop: 8 }}>
-              A jornada inteira é de 7 dias. A garantia é de 15. Você faz o método completo, sente na pele — e ainda sobram 8 dias pra decidir com calma se quer ficar. Você experimenta de verdade, e só depois decide. Se sentir que não é pra você, me escreve e devolvo cada centavo. Sem formulário, sem pergunta, sem julgamento.
+              A jornada completa dura sete dias, mas sua garantia dura quinze. Você pode acessar todas as práticas, experimentar o método e ainda terá oito dias para decidir com tranquilidade. Se, dentro desse período, concluir que o Rotina de Paz não é para você, fale com nosso suporte e devolveremos 100% do valor conforme a política da plataforma.
+            </div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 16, color: "#E4C878", marginTop: 12 }}>
+              O risco financeiro fica conosco, não com você.
             </div>
           </div>
         </Reveal>
@@ -1361,10 +1432,24 @@ export function OfferScreen({
               border: "none", cursor: "pointer", padding: "20px 40px", borderRadius: 50,
             }}
           >
-            QUERO NEUROFÉ →
+            {ctaLabel}
           </button>
           <div style={{ fontSize: 12, color: "#8A7C93", marginTop: 12 }}>
             🔒 Acesso imediato · Garantia de {NEUROFE_OFFER.guaranteeDays} dias
+          </div>
+        </Reveal>
+
+        {/* Autoria e transparência */}
+        <Reveal style={{ marginTop: 44, textAlign: "left" }}>
+          <div style={{ fontSize: 10.5, letterSpacing: 3, color: "#8A6A2A", fontWeight: 700 }}>QUEM CONDUZ</div>
+          <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 20, color: "#3B2B52", marginTop: 6 }}>
+            Guilherme Henrique
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.65, color: "#5D5368", marginTop: 8 }}>
+            Jaqueline, vista nas imagens da experiência, é a apresentadora visual da marca. O conteúdo, o atendimento e a garantia são responsabilidade do projeto Rotina de Paz.
+          </div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "#8A7C93", marginTop: 8 }}>
+            Suporte: <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#8A6A2A" }}>{SUPPORT_EMAIL}</a>
           </div>
         </Reveal>
 
@@ -1422,7 +1507,7 @@ export function OfferScreen({
               border: "none", cursor: "pointer", padding: "13px 20px", borderRadius: 50,
             }}
           >
-            Quero minha vaga <span aria-hidden>→</span>
+            {ctaShort}
           </button>
         </div>
       </div>
