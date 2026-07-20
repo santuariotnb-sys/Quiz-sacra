@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "@tanstack/react-router";
 import { GuideAvatar } from "./Avatar";
 import { SpeechBubble } from "./SpeechBubble";
 import jaquelineAvatar from "@/assets/jaqueline-avatar.webp";
-import { EmotionalProgress } from "./EmotionalProgress";
 import { WhatsProofCard } from "./WhatsProof";
 import {
   ARCHETYPES,
@@ -756,6 +755,11 @@ export function QuizApp() {
     <main className="relative min-h-dvh bg-[color:var(--milk)]">
       <AmbientParticles active={stage === "loading"} />
 
+      {/* Header persistente do fluxo do quiz: círculo com a foto da Jaqueline + nome.
+          Fora do AnimatePresence → fixo no topo entre as telas. Não aparece no
+          resultado/oferta (design Neurofé próprio). */}
+      {["questions", "age", "alert", "loading", "contact"].includes(stage) && <QuizTopbar />}
+
       <AnimatePresence mode="wait">
         {stage === "hero" && (
           <HeroScreen
@@ -1075,6 +1079,34 @@ function AcolhimentoScreen({
 
 /* ============================== QUESTIONS ============================== */
 
+/* Header persistente do fluxo do quiz (design do HTML de referência):
+   círculo com a FOTO da Jaqueline + nome "Jaqueline". Sem as abas de prévia
+   (QUIZ/RESULTADO/OFERTA), que eram navegação do protótipo — aqui o fluxo real
+   é a máquina de stages. */
+function QuizTopbar() {
+  return (
+    <div className="rdp-topbar">
+      <img
+        src={jaquelineAvatar}
+        alt="Jaqueline"
+        width={38}
+        height={38}
+        className="rdp-topbar-avatar"
+        loading="eager"
+        decoding="async"
+      />
+      <span className="rdp-topbar-name">Jaqueline</span>
+    </div>
+  );
+}
+
+// G3 (Zeigarnik): progresso inicial rápido, desacelera no fim. Preserva o ritmo
+// psicológico da barra antiga (EmotionalProgress) no novo layout do HTML.
+const QUESTION_PROGRESS_MAP = [22, 38, 52, 65, 78, 90, 97];
+function getQuestionPct(qIndex: number, total: number): number {
+  return QUESTION_PROGRESS_MAP[qIndex] ?? Math.min(100, Math.round(((qIndex + 1) / total) * 100));
+}
+
 function QuestionScreen({
   qIndex,
   total,
@@ -1099,11 +1131,11 @@ function QuestionScreen({
   const safeIndex = qIndex >= 0 && qIndex < QUESTIONS.length ? qIndex : 0;
   const q = QUESTIONS[safeIndex];
   const rawTransition = getTransition(safeIndex, answers);
-  const [showOptions, setShowOptions] = useState(false);
-  const [showPrompt, setShowPrompt] = useState(!rawTransition);
   const [picked, setPicked] = useState<string | null>(null);
+  const prefersReduced = useReducedMotion();
 
-  // G1-v5: encadear reação pendente + transição num balão só
+  // G1-v5: encadeia reação pendente + transição da próxima pergunta num texto só
+  // (mesma semântica do fluxo antigo, agora renderizado como micro-card, sem chat).
   const chainedReaction = pendingReaction.current;
   const transition = chainedReaction && rawTransition
     ? `${chainedReaction}\n\n${rawTransition}`
@@ -1114,40 +1146,46 @@ function QuestionScreen({
     if (chainedReaction) pendingReaction.current = null;
   });
 
+  // Reseta o "picked" a cada pergunta nova
   useEffect(() => {
-    if (!q) return;
-    setShowOptions(false);
-    setShowPrompt(!transition);
     setPicked(null);
-    // Mesma regra do SpeechBubble: reduced-motion ou aba oculta (pré-load do Meta
-    // in-app) = sem espera coreografada — pergunta e opções prontas de imediato.
-    const skipAnim =
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
-      document.visibilityState === "hidden";
-    const promptDelay = skipAnim || !transition ? 0 : 650;
-    const t1 = transition
-      ? window.setTimeout(() => setShowPrompt(true), promptDelay)
-      : null;
-    const optDelay = skipAnim
-      ? 0
-      : promptDelay + (transition ? 100 : 0) + q.prompt.length * 30 + 250;
-    const t2 = window.setTimeout(() => setShowOptions(true), optDelay);
-    return () => {
-      if (t1) clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [qIndex, q?.prompt, transition]);
+  }, [qIndex]);
 
   if (!q) return null;
+
+  const pct = getQuestionPct(safeIndex, total);
+  const isFirst = safeIndex === 0;
+  const helper = q.subprompt ?? "Toque na resposta que mais se aproxima de você hoje.";
+  // Micro-card (reflexão da guia): a reação após responder tem prioridade sobre a
+  // transição de entrada. Conteúdo instantâneo — sem typewriter.
+  const microText = reaction ?? (transition || null);
+  // Transição de entrada da pergunta: fade + slide curto, respeitando reduced-motion.
+  const enter = prefersReduced
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 } }
+    : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 } };
 
   return (
     <motion.section
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto flex min-h-dvh max-w-2xl flex-col overflow-x-clip px-5 pb-6 pt-4 sm:px-8 sm:pb-10 sm:pt-6"
+      className="mx-auto flex min-h-dvh max-w-2xl flex-col overflow-x-clip px-5 pb-8 pt-2 sm:px-8 sm:pb-10"
     >
-      <EmotionalProgress current={qIndex + 1} total={total} answers={answers} />
+      {/* Barra de progresso (estilo do HTML): "Pergunta X de 7" + "XX%" + barra gradiente */}
+      <div className="mt-3 w-full">
+        <div className="rdp-progress-meta">
+          <span>Pergunta {safeIndex + 1} de {total}</span>
+          <span>{pct}%</span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-[color:var(--milk-warm)]">
+          <motion.div
+            className="rdp-gradient-progress h-full rounded-full"
+            initial={false}
+            animate={{ width: `${pct}%` }}
+            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+          />
+        </div>
+      </div>
 
       {/* Retomada: banner de boas-vindas */}
       <AnimatePresence>
@@ -1166,105 +1204,76 @@ function QuestionScreen({
         )}
       </AnimatePresence>
 
-      <div className="mt-5 flex items-start gap-3 sm:mt-8 sm:gap-5">
-        <GuideAvatar size="corner" />
-        <div className="min-w-0 flex-1 space-y-2 pt-1 sm:space-y-3">
-          {/* G1-v5: reação da guia como balão (mesmo visual das transições) */}
-          <AnimatePresence>
-            {reaction && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <SpeechBubble text={reaction} italic resetKey={reaction} typingDelay={0} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Micro-card escuro: reflexão da guia (transição/reação), instantâneo */}
+      <AnimatePresence mode="wait">
+        {microText && (
+          <motion.div
+            key={microText}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: prefersReduced ? 0 : 0.3 }}
+            className="rdp-micro-card"
+          >
+            {microText}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* Transição (pode ter reação encadeada no início) */}
-          {!reaction && transition && (
-            <SpeechBubble
-              text={transition}
-              resetKey={`t-${qIndex}`}
-              italic
-              instant={!chainedReaction}
-              typingDelay={chainedReaction ? 0 : undefined}
-            />
-          )}
-          {!reaction && showPrompt && (
-            <SpeechBubble
-              text={q.prompt}
-              resetKey={`p-${qIndex}`}
-              typingDelay={transition ? 100 : 0}
-            />
-          )}
-          {!reaction && showPrompt && q.subprompt && (
-            <p className="pl-1 text-sm italic text-[color:var(--amethyst)]">
-              {q.subprompt}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-2 sm:mt-8 sm:gap-3">
-        <AnimatePresence>
-          {!reaction && showOptions &&
-            q.options.map((opt, i) => (
-              <motion.button
+      {/* Card da pergunta (design do HTML) */}
+      <motion.div
+        key={qIndex}
+        initial={enter.initial}
+        animate={enter.animate}
+        transition={{ duration: prefersReduced ? 0 : 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className={`mt-4 ${isFirst ? "rdp-q-card is-first" : "rdp-q-card"}`}
+      >
+        {isFirst && <div className="rdp-q-label">Quiz Sacra · 7 perguntas</div>}
+        <h2 className="rdp-q-title">{q.prompt}</h2>
+        <div className="rdp-answers">
+          {q.options.map((opt) => {
+            const isPicked = picked === opt.value;
+            return (
+              <button
                 key={opt.value}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ delay: i * 0.18, duration: 0.35, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }}
+                type="button"
                 disabled={!!picked}
                 onClick={() => {
                   if (picked) return;
                   setPicked(opt.value);
                   window.setTimeout(() => answer(opt.value), 280);
                 }}
-                className={`group relative flex items-start gap-3 overflow-hidden rounded-2xl border bg-white px-5 py-4 text-left text-base text-[color:var(--deep-purple)] transition-all sm:text-lg ${
-                  picked === opt.value
-                    ? "rdp-option-picked"
-                    : "border-[color:var(--border)] hover:-translate-y-0.5 hover:border-[color:var(--gold-warm)]/60"
-                }`}
+                className={`rdp-answer ${isPicked ? "is-picked" : ""}`}
               >
-                {/* Checkbox quadradinho */}
-                <span aria-hidden className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-all duration-200 ${
-                  picked === opt.value
-                    ? "border-[color:var(--gold-warm)] bg-[color:var(--gold-warm)]"
-                    : "border-[color:var(--lavender)]/50 bg-white group-hover:border-[color:var(--gold-warm)]"
-                }`}>
-                  <svg viewBox="0 0 12 10" fill="none" className={`h-3 w-3 transition-all duration-200 ${
-                    picked === opt.value ? "scale-100 opacity-100" : "scale-50 opacity-0"
-                  }`}>
-                    <path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-                <span className="relative z-10">{opt.label}</span>
-              </motion.button>
-            ))}
-        </AnimatePresence>
-      </div>
+                <span aria-hidden className="rdp-answer-icon">✦</span>
+                <span className="rdp-answer-label">{opt.label}</span>
+                <span aria-hidden className="rdp-answer-arrow">→</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="rdp-q-helper">{helper}</p>
+      </motion.div>
 
-      {/* Encorajamento bloqueador */}
+      {/* Encorajamento bloqueador — card limpo (sem chat/typewriter) */}
       <AnimatePresence>
         {encouragement && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-30 flex items-center justify-center bg-[color:var(--milk)]/90 backdrop-blur-sm"
+            className="fixed inset-0 z-30 flex items-center justify-center bg-[color:var(--milk)]/92 px-6 backdrop-blur-sm"
           >
-            <div className="flex max-w-md items-start gap-4 px-6 text-left">
-              <GuideAvatar size="corner" />
-              <SpeechBubble
-                text={encouragement}
-                italic
-                resetKey={encouragement}
-              />
-            </div>
+            <motion.div
+              initial={prefersReduced ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: prefersReduced ? 0 : 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-md rounded-3xl border border-[color:var(--gold-warm)]/25 bg-white px-7 py-8 text-center shadow-[0_28px_70px_-24px_rgba(60,40,72,0.4)]"
+            >
+              <p className="font-display text-2xl italic leading-snug text-[color:var(--deep-purple)] sm:text-[28px]">
+                {encouragement}
+              </p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1461,15 +1470,12 @@ function ContactGateScreen({
       transition={{ duration: 0.6 }}
       className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center overflow-x-clip px-5 py-10"
     >
-      {/* Avatar + balao */}
-      <div className="flex w-full items-start gap-3 sm:gap-5">
-        <GuideAvatar size="corner" />
-        <div className="min-w-0 flex-1 pt-1">
-          <SpeechBubble
-            text="Seu resultado está pronto."
-            typingDelay={300}
-          />
-        </div>
+      {/* Cabeçalho (mesmo design do card do quiz — sem chat/typewriter) */}
+      <div className="w-full text-center">
+        <span className="rdp-q-label">Seu diagnóstico está pronto</span>
+        <h1 className="mt-1 font-display text-[32px] leading-[1.05] text-[color:var(--deep-purple)] sm:text-[40px]">
+          Seu resultado está pronto.
+        </h1>
       </div>
 
       {/* Card conversacional */}
